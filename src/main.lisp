@@ -1,5 +1,6 @@
-(uiop:define-package monsoon
-  (:use #:cl)
-  (:shadow :position))
+(defpackage :monsoon
+  (:use :cl)
+  (:shadow :position)
+  (:local-nicknames (:it :iterate)))
 (in-package #:monsoon)
 
