@@ -16,10 +16,10 @@
   "4 bits to represent castling rights."
   '(unsigned-byte 4))
 
-(serapeum:defconst +white-kingside+  #B1000)
-(serapeum:defconst +white-queenside+ #B0100)
-(serapeum:defconst +black-kingside+  #B0010)
-(serapeum:defconst +black-queenside+ #B0001)
+(serapeum:defconst +white-kingside+  #b1000)
+(serapeum:defconst +white-queenside+ #b0100)
+(serapeum:defconst +black-kingside+  #b0010)
+(serapeum:defconst +black-queenside+ #b0001)
 
 (deftype file () '(integer 0 7))
 (deftype rank () '(integer 0 7))
