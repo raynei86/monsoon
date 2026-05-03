@@ -1,4 +1,5 @@
 (uiop:define-package monsoon
-  (:use #:cl))
+  (:use #:cl)
+  (:shadow :position))
 (in-package #:monsoon)
 
