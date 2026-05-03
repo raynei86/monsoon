@@ -5,8 +5,9 @@
   :depends-on ("iterate" "serapeum")
   :components ((:module "src"
                 :components
-                ((:file "main"))))
-  :description ""
+                ((:file "main")
+		 (:file "types"))))
+  :description "A chess library"
   :in-order-to ((test-op (test-op "monsoon/tests"))))
 
 (defsystem "monsoon/tests"
