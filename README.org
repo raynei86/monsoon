@@ -1,0 +1,3 @@
+* Monsoon 
+
+My renewed attempt at writing a chess library.
