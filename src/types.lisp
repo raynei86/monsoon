@@ -62,7 +62,7 @@
   "Returns an integer [0, 11] representing a colored piece."
   (declare (type piece piece)
 	   (type color color))
-  (+ (* (piece-code piece) 2) (color-code color)))
+  (+ (* (piece-index piece) 2) (color-index color)))
 
 ;; Hashing and utils
 (deftype hash-key ()
