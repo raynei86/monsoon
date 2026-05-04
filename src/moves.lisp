@@ -35,37 +35,42 @@
 
 
 ;; Attack tables
-(defmacro generate-attack-table (offsets check-move)
+(defun direction-to-offset (direction)
+  (case direction
+    (:n 8)   (:s -8)  (:e 1)   (:w -1)
+    (:ne 9)  (:nw 7)  (:se -7) (:sw -9)
+
+    ;; Knight specific moves defined as combinations
+    (:nne 17) (:nee 10) (:see -6) (:sse -15)
+    (:ssw -17) (:sww -10) (:nww 6) (:nnw 15)))
+
+(defmacro offsets (&rest dirs)
+  "Translates compass keywords to a list of integer offsets."
+  `(list ,@(mapcar #'direction-to-offset dirs)))
+
+(defmacro generate-attack-table (directions &body check-logic)
   `(it:iter
-    (it:with table = (make-array 64 :element-type 'bitboard :initial-element 0))
-    (it:for sq from 0 below 64)
-    (setf (aref table sq)
-	  (it:iter
-	    (it:for offset in ,offsets)
-	    (it:for to = (+ sq offset))
-	    (when (and (<= 0 to 63) (,check-move sq to))
-	      (it:sum (ash 1 to) into attacks))
-	    (it:finally (return attacks))))
-    (it:finally (return table))))
+     (it:with table = (make-array 64 :element-type 'bitboard :initial-element 0))
+     (it:for sq from 0 below 64)
+     (setf (aref table sq)
+	   (it:iter
+	     (it:for offset in (offsets ,@ directions))
+	     (it:for to = (+ sq offset))
+	     (when (and (<= 0 to 63)
+			(let ((from sq) (to to)) ,@check-logic))
+	       (it:sum (ash 1 to) into attacks))
+	     (it:finally (return attacks))))
+     (it:finally (return table))))
 
 (serapeum:defconst +king-attacks+
-  (generate-attack-table '(-9 -8 -7 -1 1 7 8 9) check-king-move))
+  (generate-attack-table (:n :s :e :w :ne :nw :se :sw)
+    (<= (abs (- (file-of from) (file-of to))) 1))) 
 
 (serapeum:defconst +knight-attacks+
-  (generate-attack-table '(-17 -15 -10 -6 6 10 15 17) check-knight-move))
-
-(defun check-knight-move (from to)
-  (let ((df (abs (- (file-of from) (file-of to))))
-	(dr (abs (- (rank-of from) (rank-of to)))))
-    ;; Makes sure that file and rank difference cannot both be 2, or
-    ;; else the knight went into a wormhole
-    (or (and (= df 1) (= dr 2))
-	(and (= dr 1) (= df 2)))))
-
-(defun check-king-move (from to)
-  (let ((df (abs (- (file-of to) (file-of from)))))
-    ;; If the king managed to move more than 1 file, it most
-    ;; definitely warped away
-    (<= df 1)))
+  (generate-attack-table (:nne :nee :see :sse :ssw :sww :nww :nnw)
+    (let ((df (abs (- (file-of from) (file-of to))))
+	  (dr (abs (- (rank-of from) (rank-of to)))))
+      (or (and (= df 1) (= dr 2))
+	  (and (= dr 1) (= df 2))))))
 
 
