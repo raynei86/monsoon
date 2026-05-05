@@ -18,10 +18,6 @@
   (by-piece	; Same idea as the color boards but for pieces instead
    (make-array 6 :element-type 'bitboard :initial-element 0)
    :type (simple-array bitboard (6)))
-
-  (mailbox			; To make square-centric lookup easier
-   (make-array 64 :element-type 'colored-piece-code :initial-element 0)
-   :type (simple-array colored-piece-code (64)))
   
   (occupied-squares   ; Union of the two colored bitboards
    0
@@ -34,17 +30,37 @@
   (fullmove-number 1   :type (integer 1 *))
   (hash         0   :type hash-key))  ; Zobrist hash not implemented yet, keep it for now
 
-(defun occupant-at (pos square)
+(defun occupied-p (position square)
+  (logbitp square (pos-occupied-squares position)))
+
+(defun color-at (position square)
+  "Returns the color of the piece on `square`. Assumes the square is occupied."
+  (if (logbitp square (aref (pos-by-color position) 0))
+      :white :black))
+
+(defun piece-at (position square)
+  "Returns the piece type on `square`. Assumes the square is occupied."
+  (let ((bit (ash 1 square)))
+    (it:iter
+      (it:for piece-index from 0 below 6)
+      (it:finding (ecase piece-index
+                    (0 :pawn) (1 :knight) (2 :bishop)
+                    (3 :rook) (4 :queen)  (5 :king))
+                  such-that (logtest bit (aref (pos-by-piece position) piece-index))))))
+
+(defun occupant-at (position square)
   "Returns the colored piece at that square as an `color-pieced-code`"
-  (aref (pos-mailbox pos) square))
+  (if (occupied-p position square)
+      (values (piece-at  position square)
+              (color-at position square))
+      (values nil nil)))
 
-(defun piece-at (pos square)
-  "Returns the type of piece at that square"
-  (piece-index (occupant-at pos square)))
-
-(defun color-at (pos square)
-  "Returns the color of the piece at that square"
-  (color-index (occupant-at pos square)))
+(defmacro with-square ((piece color) position square &body body)
+  "Bind `piece` and `color` for the occupant of `square` in `position`.
+   Both are NIL if the square is empty."
+  `(multiple-value-bind (,piece ,color)
+       (occupant-at ,position ,square)
+     ,@body))
 
 (defun opponent (color)
   (declare (type color color))
