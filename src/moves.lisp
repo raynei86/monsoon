@@ -130,7 +130,7 @@
 ;; `generate-moves-for-sliders`. Defining them as macros opens them up
 ;; to that necessary context.
 (defmacro rook-attack-mask (square occupied)
-  (logior (ray-attacks+ ,square :n ,occupied)
+  `(logior (ray-attacks+ ,square :n ,occupied)
           (ray-attacks+ ,square :e ,occupied)
           (ray-attacks- ,square :s ,occupied)
           (ray-attacks- ,square :w ,occupied)))
