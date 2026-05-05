@@ -36,7 +36,10 @@
 (defun color-at (position square)
   "Returns the color of the piece on `square`. Assumes the square is occupied."
   (if (logbitp square (aref (pos-by-color position) 0))
-      :white :black))
+      :white
+      (if (logbitp square (aref (pos-by-color position) 1))
+	  :black
+	  nil)))
 
 (defun piece-at (position square)
   "Returns the piece type on `square`. Assumes the square is occupied."
