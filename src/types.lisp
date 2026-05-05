@@ -32,6 +32,14 @@
   (declare (type square square))
   (values (floor square 8)))
 
+(defmacro sq (name)
+  "Translates a symbol like :e4 to an integer like 28"
+  (when (symbolp name)
+      (let* ((str (symbol-name name))
+             (file (- (char-code (char-downcase (char str 0))) (char-code #\a)))
+             (rank (1- (digit-char-p (char str 1)))))
+        (+ (* rank 8) file))))
+
 
 ;; Pieces and color
 (deftype color ()
