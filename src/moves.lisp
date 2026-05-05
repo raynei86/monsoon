@@ -33,6 +33,11 @@
              (:kingside  +move-flag-kingside+)
              (:queenside +move-flag-queenside+))))
 
+(defun emit-moves (from targets-bb &optional (flags 0))
+  "Returns a list of moves from `from` to each target in `targets-bb`"
+  (it:iter
+    (for target in-bitboard targets-bb)
+    (it:collect (make-move from target nil flags))))
 
 ;; Attack tables
 (defun direction-to-offset (direction)
@@ -54,7 +59,7 @@
      (it:for sq from 0 below 64)
      (setf (aref table sq)
 	   (it:iter
-	     (it:for offset in (offsets ,@ directions))
+	     (it:for offset in (offsets ,@directions))
 	     (it:for to = (+ sq offset))
 	     (when (and (<= 0 to 63)
 			(let ((from sq) (to to)) ,@check-logic))
@@ -104,17 +109,59 @@
   "Takes a square, direction of the ray, and a bitboard of occupied squares.
    Then returns a ray that factors in obstacles."
   `(let* ((ray (ray ,direction ,square))
-	 (blockers (logand ray ,occupied))) ; All occupied squares on ray path
-    (if (zerop blockers)
-	ray
-					; When there is a blocker, cut off the ray by xoring it with
-					; another ray at the obstacle
-	(logxor ray (ray ,direction (,blocker-func blockers))))))
+	  (blockers (logand ray ,occupied))) ; All occupied squares on ray path
+     (if (zerop blockers)
+	 ray
+	 ;; When there is a blocker, cut off the ray by xoring it with
+	 ;; another ray at the obstacle
+	 (logxor ray (ray ,direction (,blocker-func blockers))))))
 
-(defun ray-attacks+ (sq direction occupied)
+(defun ray-attacks+ (square direction occupied)
   "Attacks along a positive ray from square, cut off at first obstacle"
-  (ray-attacks sq direction occupied lsb))
+  (ray-attacks square direction occupied lsb))
 
-(defun ray-attacks- (sq direction occupied)
+(defun ray-attacks- (square direction occupied)
   "Attacks along a negative ray from square, cut off at first obstacle"
-  (ray-attacks sq direction occupied msb))
+  (ray-attacks square direction occupied msb))
+
+;; Defined as macros because of the anaphoric nature you see below. I
+;; need to reference a `from` square that is simply not existent in
+;; `generate-slider-moves`, but is present in
+;; `generate-moves-for-sliders`. Defining them as macros opens them up
+;; to that necessary context.
+(defmacro rook-attack-mask (square occupied)
+  (logior (ray-attacks+ ,square :n ,occupied)
+          (ray-attacks+ ,square :e ,occupied)
+          (ray-attacks- ,square :s ,occupied)
+          (ray-attacks- ,square :w ,occupied)))
+
+(defmacro bishop-attack-mask (square occupied)
+  `(logior (ray-attacks+ ,square :ne ,occupied)
+           (ray-attacks+ ,square :nw ,occupied)
+           (ray-attacks- ,square :se ,occupied)
+           (ray-attacks- ,square :sw ,occupied)))
+
+(defmacro queen-attack-mask (square occupied)
+  `(logior (rook-attacks ,square ,occupied)
+	   (bishop-attacks ,square ,occupied)))
+
+(defmacro generate-moves-for-slider (pieces-bb attack-expr friendly enemy)
+  "Generate pseudo-legal moves for slider pieces in `piece-bb`."
+  `(it:iter
+    (for from in-bitboard ,pieces-bb)
+    (let* ((attacks (logandc2 ,attack-expr ,friendly))
+	   (captures (logand attacks ,enemy))
+	   (quiets (logandc2 attacks ,enemy)))
+      (nconc (emit-moves from captures +move-flag-capture+)
+	     (emit-moves from quiets)))))
+
+;; Oh my, this is amazingly concise
+(defun generate-slider-moves (position)
+  "Returns pseudo-legal moves for all slider pieces in the position"
+  (with-position (side occupied friendly enemy) position
+    (flet ((piece-board (piece)
+	     (aref (pos-boards position) (colored-piece-index piece side))))
+      (nconc
+       (generate-moves-for-slider (piece-board :rook) (rook-attacks from occupied) friendly enemy)
+       (generate-moves-for-slider (piece-board :bishop) (bishop-attacks from occupied) friendly enemy)
+       (generate-moves-for-slider (piece-board :queen) (queen-attacks from occupied) friendly enemy)))))

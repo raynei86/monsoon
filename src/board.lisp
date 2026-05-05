@@ -34,7 +34,6 @@
   (fullmove-number 1   :type (integer 1 *))
   (hash         0   :type hash-key))  ; Zobrist hash not implemented yet, keep it for now
 
-
 (defun occupant-at (pos square)
   "Returns the colored piece at that square as an `color-pieced-code`"
   (aref (pos-mailbox pos) square))
@@ -47,3 +46,17 @@
   "Returns the color of the piece at that square"
   (color-index (occupant-at pos square)))
 
+(defun opponent (color)
+  (declare (type color color))
+  (if (eq color :white) :black :white))
+
+(defmacro with-position ((side occupied friendly enemy) position &body body)
+  "Binds some necessary information about the position"
+  (alexandria:with-gensyms (pos color-index)
+    `(let* ((,pos        ,position)
+            (,side     (pos-side-to-move ,pos))
+            (,color-index      (color-index ,side))
+            (,occupied (pos-occupied-squares ,pos))
+            (,friendly (aref (pos-by-color ,pos) ,color-index))
+            (,enemy    (aref (pos-by-color ,pos) (- 1 ,color-index))))
+       ,@body)))
