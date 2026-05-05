@@ -7,6 +7,10 @@
   (declare (type bitboard bb))
   (1- (integer-length (logand bb (- bb)))))
 
+(defun msb (bb)
+  (declare (type bitboard bb))
+  (1- (integer-length bb)))
+
 (it:defmacro-clause (FOR bit in-bitboard bitboard)
   "Iterates over the individual bits of a bitboard"
   (alexandria:with-gensyms (bb)
