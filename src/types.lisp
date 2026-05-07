@@ -12,6 +12,16 @@
   "A bitboard represented using a 64bit integer."
   '(unsigned-byte 64))
 
+(serapeum:defconst +full-board+ #xFFFFFFFFFFFFFFFF)
+(serapeum:defconst +rank-1+ #x00000000000000FF)
+(serapeum:defconst +rank-2+ #x000000000000FF00)
+(serapeum:defconst +rank-4+ #x00000000FF000000)
+(serapeum:defconst +rank-5+ #x000000FF00000000)
+(serapeum:defconst +rank-7+ #x00FF000000000000)
+(serapeum:defconst +rank-8+ #xFF00000000000000)
+(serapeum:defconst +not-file-a+ #xFEFEFEFEFEFEFEFE)
+(serapeum:defconst +not-file-h+ #x7F7F7F7F7F7F7F7F)
+
 (deftype castling-rights ()
   "4 bits to represent castling rights."
   '(unsigned-byte 4))

@@ -191,3 +191,84 @@
      (aref (pos-boards position) (colored-piece-index :bishop side))
      (queen-attacks from occupied)
      friendly enemy)))
+
+;; Pawn move generation
+;; These masks just set the bit "north"/"south" of a board with a set bit
+(defun north (bb) (logand (ash bb  8) +full-board+))
+(defun south (bb) (logand (ash bb -8) +full-board+))
+
+(defmacro with-pawn-params (side &body body)
+  "Bind pawn movement parameters for `side. All shifts are from the
+   perspective of the board (east = toward file H), not the pawn."
+  `(let ((push-fn     (if (eq ,side :white) #'north #'south))
+	 (push-shift  (if (eq ,side :white)  8  -8))
+	 (cap-e-shift (if (eq ,side :white)  9  -7)) ; NE / SE
+	 (cap-w-shift (if (eq ,side :white)  7  -9)) ; NW / SW
+	 (start-rank  (if (eq ,side :white) +rank-2+ +rank-7+))
+	 (promo-rank  (if (eq ,side :white) +rank-8+ +rank-1+)))
+     ,@body))
+
+(defmacro emit-pawn-moves (targets shift &optional (flags 0))
+  "Emit moves for all targets, deriving the source square as (target - shift)."
+  `(it:iter
+    (for target in-bitboard ,targets)
+    (it:collect (make-move (- target ,shift) target nil ,flags))))
+
+(defmacro emit-pawn-promos (targets shift &optional (flags 0))
+  "Emit all 4 promotion types as moves"
+  `(it:iter
+     (for target in-bitboard ,targets)
+     (it:for promo in '(:queen :rook :bishop :knight))
+     (it:collect (make-move (- target ,shift) target promo ,flags))))
+
+(defun generate-pawn-moves (position)
+  ;; A lot to unpack here. So push1 checks if moving forward is valid
+  ;; by pushing the `pawns` bitboard forward and ANDing it with the
+  ;; bitboard representing empty space, essentially only allowing only
+  ;; empty squares to be in front.
+
+  ;; push2 checks if push1 landed on the rank in front of the
+  ;; start-rank, then shifts only those moves forward again once more.
+
+  ;; cap-e and cap-w mask out any pawns on h or a, as if they capture
+  ;; to east or west (depending on their location), they will fly off the board.
+  (with-position (side occupied friendly enemy) position
+    (with-pawn-params side
+      (let* ((pawns (aref (pos-boards position) (colored-piece-index :pawn side)))
+             (empty (logand (lognot occupied) +full-board+))
+	     (moves '())
+
+             ;; Pushes
+             (push1 (logand (funcall push-fn pawns) empty))
+             (push2 (logand (funcall push-fn (logand push1 start-rank)) empty))
+
+             ;; Captures
+             (cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) enemy))
+             (cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) enemy))
+
+             ;; Split promotions from regular moves
+             (push1-promo (logand    push1 promo-rank))
+             (push1-quiet (logandc2  push1 promo-rank))
+             (cap-e-promo (logand    cap-e promo-rank))
+             (cap-e-quiet (logandc2  cap-e promo-rank))
+             (cap-w-promo (logand    cap-w promo-rank))
+             (cap-w-quiet (logandc2  cap-w promo-rank)))
+
+        (push (emit-pawn-moves push1-quiet push-shift) moves)
+        (push (emit-pawn-moves push2 (* 2 push-shift) +move-flag-double+) moves)
+        (push (emit-pawn-moves cap-e-quiet cap-e-shift +move-flag-capture+) moves)
+        (push (emit-pawn-moves cap-w-quiet cap-w-shift +move-flag-capture+) moves)
+
+        (push (emit-pawn-promos push1-promo push-shift) moves)
+        (push (emit-pawn-promos cap-e-promo cap-e-shift +move-flag-capture+) moves)
+        (push (emit-pawn-promos cap-w-promo cap-w-shift +move-flag-capture+) moves)
+
+        ;; En passant — same logic as captures, but targeting the ep square alone
+        (when (pos-ep-square position)
+          (let* ((ep-bb    (ash 1 (pos-ep-square position)))
+                 (ep-cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) ep-bb))
+                 (ep-cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) ep-bb))
+                 (ep-flags (logior +move-flag-capture+ +move-flag-ep+)))
+            (push (emit-pawn-moves ep-cap-e cap-e-shift ep-flags) moves)
+            (push (emit-pawn-moves ep-cap-w cap-w-shift ep-flags) moves)))
+	moves))))
