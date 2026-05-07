@@ -78,6 +78,30 @@
       (or (and (= df 1) (= dr 2))
 	  (and (= dr 1) (= df 2))))))
 
+(defmacro generate-for-leaper (pieces-bb attack-table friendly enemy)
+  `(it:iterate
+     (for from in-bitboard ,pieces-bb)
+     (let* ((attacks  (logandc2 (aref ,attack-table from) ,friendly))
+	    (captures (logand   attacks ,enemy))
+	    (quiets   (logandc2 attacks ,enemy)))
+       (it:appending (emit-moves from captures +move-flag-capture+))
+       (it:appending (emit-moves from quiets)))))
+
+(defun generate-knight-moves (pos)
+  (with-position (side occupied friendly enemy) pos
+    (generate-for-leaper
+     (aref (pos-boards pos) (colored-piece-index :knight side))
+     +knight-attacks+
+     friendly enemy)))
+
+(defun generate-king-moves (pos)
+  (with-position (side occupied friendly enemy) pos
+    (generate-for-leaper
+     (aref (pos-boards pos) (colored-piece-index :king side))
+     +king-attacks+
+     friendly enemy)))
+
+
 ;; Rays and sliding pieces
 (defmacro generate-ray-table (direction)
   "Creates an attack table for rays going in that direction, ignoring attackers"
@@ -152,8 +176,8 @@
     (let* ((attacks (logandc2 ,attack-expr ,friendly))
 	   (captures (logand attacks ,enemy))
 	   (quiets (logandc2 attacks ,enemy)))
-      (nconc (emit-moves from captures +move-flag-capture+)
-	     (emit-moves from quiets)))))
+      (it:appending (emit-moves from captures +move-flag-capture+))
+      (it:appending (emit-moves from quiets)))))
 
 ;; Oh my, this is amazingly concise
 (defun generate-slider-moves (position)
