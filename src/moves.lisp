@@ -78,29 +78,6 @@
       (or (and (= df 1) (= dr 2))
 	  (and (= dr 1) (= df 2))))))
 
-(defmacro generate-for-leaper (pieces-bb attack-table friendly enemy)
-  `(it:iterate
-     (for from in-bitboard ,pieces-bb)
-     (let* ((attacks  (logandc2 (aref ,attack-table from) ,friendly))
-	    (captures (logand   attacks ,enemy))
-	    (quiets   (logandc2 attacks ,enemy)))
-       (it:appending (emit-moves from captures +move-flag-capture+))
-       (it:appending (emit-moves from quiets)))))
-
-(defun generate-knight-moves (pos)
-  (with-position (side occupied friendly enemy) pos
-    (generate-for-leaper
-     (aref (pos-boards pos) (colored-piece-index :knight side))
-     +knight-attacks+
-     friendly enemy)))
-
-(defun generate-king-moves (pos)
-  (with-position (side occupied friendly enemy) pos
-    (generate-for-leaper
-     (aref (pos-boards pos) (colored-piece-index :king side))
-     +king-attacks+
-     friendly enemy)))
-
 
 ;; Rays and sliding pieces
 (defmacro generate-ray-table (direction)
@@ -169,23 +146,48 @@
   `(logior (rook-attacks ,square ,occupied)
 	   (bishop-attacks ,square ,occupied)))
 
-(defmacro generate-moves-for-slider (pieces-bb attack-expr friendly enemy)
-  "Generate pseudo-legal moves for slider pieces in `piece-bb`."
+(defmacro generate-major-piece-moves (pieces-bb attack-expr friendly enemy)
+  "Generate pseudo-legal moves for pieces that are not pawns in pieces-bb"
   `(it:iter
-    (for from in-bitboard ,pieces-bb)
-    (let* ((attacks (logandc2 ,attack-expr ,friendly))
-	   (captures (logand attacks ,enemy))
-	   (quiets (logandc2 attacks ,enemy)))
-      (it:appending (emit-moves from captures +move-flag-capture+))
-      (it:appending (emit-moves from quiets)))))
+     (for from in-bitboard ,pieces-bb)
+     (let* ((attacks (logandc2 ,attack-expr ,friendly))
+	    (captures (logand attacks ,enemy))
+	    (quiets (logandc2 attacks ,enemy)))
+       (it:appending (emit-moves from captures +move-flag-capture+))
+       (it:appending (emit-moves from quiets)))))
 
 ;; Oh my, this is amazingly concise
-(defun generate-slider-moves (position)
-  "Returns pseudo-legal moves for all slider pieces in the position"
+(defun generate-knight-moves (position)
   (with-position (side occupied friendly enemy) position
-    (flet ((piece-board (piece)
-	     (aref (pos-boards position) (colored-piece-index piece side))))
-      (nconc
-       (generate-moves-for-slider (piece-board :rook) (rook-attacks from occupied) friendly enemy)
-       (generate-moves-for-slider (piece-board :bishop) (bishop-attacks from occupied) friendly enemy)
-       (generate-moves-for-slider (piece-board :queen) (queen-attacks from occupied) friendly enemy)))))
+    (generate-major-piece-moves
+     (aref (pos-boards position) (colored-piece-index :knight side))
+     (aref +knight-attacks+ from)
+     friendly enemy)))
+
+(defun generate-king-moves (position)
+  (with-position (side occupied friendly enemy) position
+    (generate-major-piece-moves
+     (aref (pos-boards position) (colored-piece-index :king side))
+     (aref +king-attacks+ from)
+     friendly enemy)))
+
+(defun generate-rook-moves (position)
+  (with-position (side occupied friendly enemy) position
+    (generate-major-piece-moves
+     (aref (pos-boards position) (colored-piece-index :rook side))
+     (rook-attacks from occupied)
+     friendly enemy)))
+
+(defun generate-bishop-moves (position)
+  (with-position (side occupied friendly enemy) position
+    (generate-major-piece-moves
+     (aref (pos-boards position) (colored-piece-index :bishop side))
+     (bishop-attacks from occupied)
+     friendly enemy)))
+
+(defun generate-queen-moves (position)
+  (with-position (side occupied friendly enemy) position
+    (generate-major-piece-moves
+     (aref (pos-boards position) (colored-piece-index :bishop side))
+     (queen-attacks from occupied)
+     friendly enemy)))
