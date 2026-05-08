@@ -82,6 +82,16 @@
 	   (type color color))
   (+ (* (piece-index piece) 2) (color-index color)))
 
+(defun decompose-colored-piece-index (index)
+  (declare (type colored-piece-code index))
+  (let* ((color (if (evenp index) 0 1))
+	 (piece (/ (- index color) 2)))
+    (values piece color)))
+(defmacro with-colored-piece-index ((piece color) index &body body)
+  `(multiple-value-bind (,piece ,color)
+       (decompose-colored-piece-index ,index)
+     ,@body))
+
 ;; Hashing and utils
 (deftype hash-key ()
   '(unsigned-byte 64))

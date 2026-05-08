@@ -17,18 +17,6 @@
        (serapeum:tokens ,fen)
      ,@body))
 
-;; TODO: This is probably useful elsewhere too
-(defun place-piece! (pos square piece color)
-  "Place `piece` of `color` on `square`, updating all boards."
-  (let ((bit (ash 1 square))
-        (piece  (piece-index piece))
-        (color  (color-index color))
-        (color-piece (colored-piece-index piece color)))
-    (setf (aref (pos-boards   pos) color-piece)    (logior (aref (pos-boards   pos) color-piece) bit)
-          (aref (pos-by-piece pos) piece)          (logior (aref (pos-by-piece pos) piece)  bit)
-          (aref (pos-by-color pos) color)          (logior (aref (pos-by-color pos) color)  bit)
-          (pos-occupied-squares pos)               (logior (pos-occupied-squares pos)    bit))))
-
 (defun parse-placement! (pos placement-str)
   (it:iter
     (it:with rank = 7)   ; FEN starts from rank 8 (index 7) and descends
@@ -39,8 +27,8 @@
       ((digit-char-p ch) (incf file (digit-char-p ch)))
       (t
        (place-piece! pos (+ (* rank 8) file)
-                     (fen-char->piece ch)
-                     (fen-char->color ch))
+                     (colored-piece-index (fen-char->piece ch)
+					  (fen-char->color ch)))
        (incf file)))))
 
 (defun parse-side (side-str)

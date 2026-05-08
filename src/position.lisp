@@ -69,6 +69,30 @@
   (declare (type color color))
   (if (eq color :white) :black :white))
 
+(defun place-piece! (position square colored-piece-code)
+  "Adds a piece to the board and updates all tracking bitboards."
+  (declare (type position position) (type square square))
+  (with-colored-piece-index (piece color) colored-piece-code
+    (let ((mask (ash 1 square)))
+      (setf (aref (pos-boards position) colored-piece-code) (logior (aref (pos-boards position) colored-piece-code) mask)
+            (aref (pos-by-color position) color)           (logior (aref (pos-by-color position) color) mask)
+            (aref (pos-by-piece position) piece)           (logior (aref (pos-by-piece position) piece) mask)
+            ;; Update the occupancy bitboard (combined White + Black)
+            (pos-occupied-squares position)                        (logior (pos-occupied-squares position) mask))))
+  position)
+
+(defun remove-piece! (position square colored-piece-code)
+  "Clears a piece from the board and updates all tracking bitboards."
+  (declare (type position position) (type square square))
+  (with-colored-piece-index (piece color) colored-piece-code
+    (let ((mask (lognot (ash 1 square))))
+      (setf (aref (pos-boards position) colored-piece-code) (logand (aref (pos-boards position) colored-piece-code) mask)
+            (aref (pos-by-color position) color)           (logand (aref (pos-by-color position) color) mask)
+            (aref (pos-by-piece position) piece)           (logand (aref (pos-by-piece position) piece) mask)
+            ;; Update the occupancy bitboard (combined White + Black)
+            (pos-occupied-squares position)                        (logand (pos-occupied-squares position) mask))))
+  position))
+
 (defmacro with-position ((side occupied friendly enemy) position &body body)
   "Binds some necessary information about the position"
   (alexandria:with-gensyms (pos color-index)
