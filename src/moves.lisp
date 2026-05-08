@@ -188,7 +188,7 @@
 (defun generate-queen-moves (position)
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
-     (aref (pos-boards position) (colored-piece-index :bishop side))
+     (aref (pos-boards position) (colored-piece-index :queen side))
      (queen-attacks from occupied)
      friendly enemy)))
 
