@@ -40,8 +40,8 @@
     (it:collect (make-move from target nil flags))))
 
 ;; Attack tables
-(defun direction-to-offset (direction)
-  (case direction
+(defmacro direction-to-offset (direction)
+  `(case ,direction
     (:n 8)   (:s -8)  (:e 1)   (:w -1)
     (:ne 9)  (:nw 7)  (:se -7) (:sw -9)
 
@@ -51,7 +51,9 @@
 
 (defmacro offsets (&rest dirs)
   "Translates compass keywords to a list of integer offsets."
-  `(list ,@(mapcar #'direction-to-offset dirs)))
+  `(it:iter
+     (it:for dir in ,dirs)
+     (it:collect (direction-to-offset dir))))
 
 (defmacro generate-attack-table (directions &body check-logic)
   `(it:iter
@@ -68,11 +70,11 @@
      (it:finally (return table))))
 
 (serapeum:defconst +king-attacks+
-  (generate-attack-table (:n :s :e :w :ne :nw :se :sw)
+  (generate-attack-table '(:n :s :e :w :ne :nw :se :sw)
     (<= (abs (- (file-of from) (file-of to))) 1))) 
 
 (serapeum:defconst +knight-attacks+
-  (generate-attack-table (:nne :nee :see :sse :ssw :sww :nww :nnw)
+  (generate-attack-table '(:nne :nee :see :sse :ssw :sww :nww :nnw)
     (let ((df (abs (- (file-of from) (file-of to))))
 	  (dr (abs (- (rank-of from) (rank-of to)))))
       (or (and (= df 1) (= dr 2))
