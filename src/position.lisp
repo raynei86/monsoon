@@ -102,4 +102,8 @@
             (,occupied (pos-occupied-squares ,pos))
             (,friendly (aref (pos-by-color ,pos) ,color-index))
             (,enemy    (aref (pos-by-color ,pos) (- 1 ,color-index))))
+       (declare (ignorable ,occupied)
+		(ignorable ,friendly)
+		(ignorable ,enemy)
+		(ignorable ,color-index))
        ,@body)))
