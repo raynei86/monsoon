@@ -91,7 +91,7 @@
             (aref (pos-by-piece position) piece)           (logandc2 (aref (pos-by-piece position) piece) mask)
             ;; Update the occupancy bitboard (combined White + Black)
             (pos-occupied-squares position)                        (logandc2 (pos-occupied-squares position) mask))))
-  position))
+  position)
 
 (defmacro with-position ((side occupied friendly enemy) position &body body)
   "Binds some necessary information about the position"
