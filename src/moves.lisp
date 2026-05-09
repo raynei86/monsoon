@@ -229,8 +229,10 @@
   "Emit all 4 promotion types as moves"
   `(it:iter
      (for target in-bitboard ,targets)
-     (it:for promo in '(:queen :rook :bishop :knight))
-     (it:collect (make-move (- target ,shift) target promo ,flags))))
+     (it:appending
+      (it:iter
+	(it:for promo in '(:queen :rook :bishop :knight))
+	(it:collect (make-move (- target ,shift) target promo ,flags))))))
 
 (defun generate-pawn-moves (position)
   ;; A lot to unpack here. So push1 checks if moving forward is valid
@@ -247,11 +249,13 @@
     (with-pawn-params side
       (let* ((pawns (aref (pos-boards position) (colored-piece-index :pawn side)))
              (empty (logand (lognot occupied) +full-board+))
-	     (moves '())
 
              ;; Pushes
              (push1 (logand (funcall push-fn pawns) empty))
-             (push2 (logand (funcall push-fn (logand push1 start-rank)) empty))
+	     (push2 (logand (funcall push-fn
+				     (logand (funcall push-fn (logand pawns start-rank))
+					     empty))
+			    empty))
 
              ;; Captures
              (cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) enemy))
@@ -265,24 +269,25 @@
              (cap-w-promo (logand    cap-w promo-rank))
              (cap-w-quiet (logandc2  cap-w promo-rank)))
 
-        (push (emit-pawn-moves push1-quiet push-shift) moves)
-        (push (emit-pawn-moves push2 (* 2 push-shift) +move-flag-double+) moves)
-        (push (emit-pawn-moves cap-e-quiet cap-e-shift +move-flag-capture+) moves)
-        (push (emit-pawn-moves cap-w-quiet cap-w-shift +move-flag-capture+) moves)
+        (append
+	 (emit-pawn-moves push1-quiet push-shift) 
+         (emit-pawn-moves push2 (* 2 push-shift) +move-flag-double+)
+         (emit-pawn-moves cap-e-quiet cap-e-shift +move-flag-capture+)
+         (emit-pawn-moves cap-w-quiet cap-w-shift +move-flag-capture+)
 
-        (push (emit-pawn-promos push1-promo push-shift) moves)
-        (push (emit-pawn-promos cap-e-promo cap-e-shift +move-flag-capture+) moves)
-        (push (emit-pawn-promos cap-w-promo cap-w-shift +move-flag-capture+) moves)
+         (emit-pawn-promos push1-promo push-shift)
+         (emit-pawn-promos cap-e-promo cap-e-shift +move-flag-capture+)
+         (emit-pawn-promos cap-w-promo cap-w-shift +move-flag-capture+)
 
-        ;; En passant — same logic as captures, but targeting the ep square alone
-        (when (pos-ep-square position)
-          (let* ((ep-bb    (ash 1 (pos-ep-square position)))
-                 (ep-cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) ep-bb))
-                 (ep-cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) ep-bb))
-                 (ep-flags (logior +move-flag-capture+ +move-flag-ep+)))
-            (push (emit-pawn-moves ep-cap-e cap-e-shift ep-flags) moves)
-            (push (emit-pawn-moves ep-cap-w cap-w-shift ep-flags) moves)))
-	moves))))
+	 ;; En passant — same logic as captures, but targeting the ep square alone
+         (when (pos-ep-square position)
+           (let* ((ep-bb    (ash 1 (pos-ep-square position)))
+                  (ep-cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) ep-bb))
+                  (ep-cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) ep-bb))
+                  (ep-flags (logior +move-flag-capture+ +move-flag-ep+)))
+	     (append
+	      (emit-pawn-moves ep-cap-e cap-e-shift ep-flags)
+	      (emit-pawn-moves ep-cap-w cap-w-shift ep-flags)))))))))
 
 
 ;; Castling move generation
@@ -353,7 +358,7 @@
 	   (remove-piece! new-pos (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc)
            (place-piece!  new-pos (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc))))
 
-
+      
       ;; Set the new en passant square: only on a double pawn push, one
       ;; rank behind the destination.
       (setf (pos-ep-square new-pos)
@@ -384,3 +389,55 @@
       (setf (pos-side-to-move new-pos) opp))
     new-pos))
 
+(defun generate-moves (position)
+  "Generate all pseudo-legal moves for the side to move."
+  (append (generate-pawn-moves   position)
+          (generate-knight-moves position)
+          (generate-bishop-moves position)
+          (generate-rook-moves   position)
+          (generate-queen-moves  position)
+          (generate-king-moves   position)
+          (generate-castling-moves position)))
+
+(defun king-in-check-p (pos color)
+  (let* ((king-bb  (aref (pos-boards pos) (colored-piece-index :king color)))
+         (king-sq  (lsb king-bb))
+         (opp      (opponent color))
+         (occupied (pos-occupied-squares pos))
+         (opp-pawns   (aref (pos-boards pos) (colored-piece-index :pawn   opp)))
+         (opp-knights (aref (pos-boards pos) (colored-piece-index :knight opp)))
+         (opp-bishops (aref (pos-boards pos) (colored-piece-index :bishop opp)))
+         (opp-rooks   (aref (pos-boards pos) (colored-piece-index :rook   opp)))
+         (opp-queens  (aref (pos-boards pos) (colored-piece-index :queen  opp)))
+         (opp-king    (aref (pos-boards pos) (colored-piece-index :king   opp)))
+         (diag-sliders (logior opp-bishops opp-queens))
+         (orth-sliders (logior opp-rooks   opp-queens))
+         ;; Pawn attack direction depends on the color of the king being checked,
+         ;; not the attacking pawn — we cast attacks *from* the king square outward.
+         (pawn-cap-e (if (eq color :white) 9 -7))
+         (pawn-cap-w (if (eq color :white) 7 -9)))
+    (or
+      ;; Pawn attacks: check whether an opponent pawn sits where our king
+      ;; could capture if it were a pawn itself.
+      (logtest (ash (logand king-bb +not-file-h+) pawn-cap-e) opp-pawns)
+      (logtest (ash (logand king-bb +not-file-a+) pawn-cap-w) opp-pawns)
+      ;; Knight attacks
+      (logtest (aref +knight-attacks+ king-sq) opp-knights)
+      ;; Diagonal sliders (bishop + queen)
+      (logtest (bishop-attack-mask king-sq occupied) diag-sliders)
+      ;; Orthogonal sliders (rook + queen)
+      (logtest (rook-attack-mask king-sq occupied) orth-sliders)
+      ;; King adjacency — needed to prevent kings from walking next to each other
+      (logtest (aref +king-attacks+ king-sq) opp-king))))
+
+(defun legal-move-p (pos move)
+  (let ((new-pos (do-move pos move)))
+    (not (king-in-check-p new-pos (pos-side-to-move pos)))))
+
+(defun perft (pos depth)
+  (if (zerop depth)
+      1
+      (it:iter
+        (it:for move in (generate-moves pos))
+        (when (legal-move-p pos move)
+          (it:summing (perft (do-move pos move) (1- depth)))))))
