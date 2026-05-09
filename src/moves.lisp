@@ -145,8 +145,8 @@
            (ray-attacks- ,square :sw ,occupied)))
 
 (defmacro queen-attack-mask (square occupied)
-  `(logior (rook-attacks ,square ,occupied)
-	   (bishop-attacks ,square ,occupied)))
+  `(logior (rook-attack-mask ,square ,occupied)
+	   (bishop-attack-mask ,square ,occupied)))
 
 (defmacro generate-major-piece-moves (pieces-bb attack-expr friendly enemy)
   "Generate pseudo-legal moves for pieces that are not pawns in pieces-bb"
@@ -177,21 +177,21 @@
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
      (aref (pos-boards position) (colored-piece-index :rook side))
-     (rook-attacks from occupied)
+     (rook-attack-mask from occupied)
      friendly enemy)))
 
 (defun generate-bishop-moves (position)
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
      (aref (pos-boards position) (colored-piece-index :bishop side))
-     (bishop-attacks from occupied)
+     (bishop-attack-mask from occupied)
      friendly enemy)))
 
 (defun generate-queen-moves (position)
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
      (aref (pos-boards position) (colored-piece-index :queen side))
-     (queen-attacks from occupied)
+     (queen-attack-mask from occupied)
      friendly enemy)))
 
 ;; Pawn move generation
