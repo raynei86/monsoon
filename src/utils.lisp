@@ -2,6 +2,8 @@
 
 (in-package :monsoon)
 
+(declaim (inline lsb msb))
+
 ;; Bits related utils
 (defun lsb (bb)
   (declare (type bitboard bb))

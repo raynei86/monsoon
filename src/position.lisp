@@ -4,6 +4,8 @@
 
 (in-package #:monsoon)
 
+(declaim (inline occupied-p color-at piece-at occupant-at place-piece! remove-piece! opponent))
+
 (defstruct (position (:conc-name pos-)
 		     (:copier nil))
   "A chess position. What more do you expect?"
@@ -20,7 +22,7 @@
    (make-array 6 :element-type 'bitboard :initial-element 0)
    :type (simple-array bitboard (6)))
   
-  (occupied-squares   ; Union of the two colored bitboards
+  (occupied-squares		  ; Union of the two colored bitboards
    0
    :type bitboard)
 
@@ -32,9 +34,11 @@
   (hash         0   :type hash-key))  ; Zobrist hash not implemented yet, keep it for now
 
 (defun occupied-p (position square)
+  (declare (type square square))
   (logbitp square (pos-occupied-squares position)))
 
 (defun color-at (position square)
+  (declare (type square square))
   "Returns the color of the piece on `square`. Assumes the square is occupied."
   (if (logbitp square (aref (pos-by-color position) 0))
       :white
@@ -43,6 +47,7 @@
 	  nil)))
 
 (defun piece-at (position square)
+  (declare (type square square))
   "Returns the piece type on `square`. Assumes the square is occupied."
   (let ((bit (ash 1 square)))
     (it:iter

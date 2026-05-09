@@ -3,6 +3,8 @@
 
 (in-package #:monsoon)
 
+(declaim (inline color-index piece-index colored-piece-index))
+
 ;; Squares and board
 (deftype square ()
   "A chess board square. It's a number in the range [0, 64]"
@@ -96,8 +98,8 @@
 
 (defun decompose-colored-piece-index (index)
   (declare (type colored-piece-code index))
-  (let* ((color (if (evenp index) 0 1))
-	 (piece (/ (- index color) 2)))
+  (let* ((color (logand index 1))
+	 (piece (ash index -1)))
     (values piece color)))
 (defmacro with-colored-piece-index ((piece color) index &body body)
   `(multiple-value-bind (,piece ,color)

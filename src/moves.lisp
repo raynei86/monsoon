@@ -3,6 +3,8 @@
 
 (in-package #:monsoon)
 
+(declaim (inline (move-has-flag?)))
+
 ;; Types and declarations 
 (defstruct (move (:constructor make-move (from to &optional promotion flags)))
   (from 0 :type square)
