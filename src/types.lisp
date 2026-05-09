@@ -31,6 +31,18 @@
 (serapeum:defconst +black-kingside+  #b0010)
 (serapeum:defconst +black-queenside+ #b0001)
 
+(serapeum:defconst +castling-rights-mask+
+  ;; ANDed with current rights when a piece moves from or to that square.
+  ;; All other squares have #b1111 as a no-op
+  (let ((table (make-array 64 :initial-element #b1111)))
+    (setf (aref table (sq :e1)) #b0011   ; white king: clears both white rights
+          (aref table (sq :e8)) #b1100   ; black king: clears both black rights
+          (aref table (sq :h1)) #b0111   ; white h-rook: clears white kingside
+          (aref table (sq :a1)) #b1011   ; white a-rook: clears white queenside
+          (aref table (sq :h8)) #b1101   ; black h-rook: clears black kingside
+          (aref table (sq :a8)) #b1110)  ; black a-rook: clears black queenside
+    table))
+
 (deftype file () '(integer 0 7))
 (deftype rank () '(integer 0 7))
 

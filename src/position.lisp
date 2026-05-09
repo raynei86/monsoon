@@ -4,7 +4,8 @@
 
 (in-package #:monsoon)
 
-(defstruct (position (:conc-name pos-))
+(defstruct (position (:conc-name pos-)
+		     (:copier nil))
   "A chess position. What more do you expect?"
 
   (boards     ; The 12 bitboards for both each different colored piece
@@ -107,3 +108,16 @@
 		(ignorable ,enemy)
 		(ignorable ,color-index))
        ,@body)))
+
+(defun copy-position (pos)
+  (make-position
+    :boards           (copy-seq (pos-boards pos))
+    :by-color         (copy-seq (pos-by-color pos))
+    :by-piece         (copy-seq (pos-by-piece pos))
+    :occupied-squares (pos-occupied-squares pos)
+    :side-to-move     (pos-side-to-move pos)
+    :castling         (pos-castling pos)
+    :ep-square        (pos-ep-square pos)
+    :halfmove-clock   (pos-halfmove-clock pos)
+    :fullmove-number  (pos-fullmove-number pos)
+    :hash             (pos-hash pos)))

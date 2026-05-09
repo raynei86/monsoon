@@ -10,6 +10,15 @@
   (promotion nil :type (or null piece))
   (flags 0 :type (unsigned-byte 5)))
 
+(defmacro with-move ((from to promotion flags) move &body body)
+  `(let ((,from      (move-from      ,move))
+         (,to        (move-to        ,move))
+         (,promotion (move-promotion ,move))
+         (,flags     (move-flags     ,move)))
+     (declare (ignorable flags)) ;; Yeah, because it's kinda useless
+				 ;; when you have `move-has-flag?`
+     ,@body))
+
 (serapeum:defconst +move-flag-capture+   #b00001)
 (serapeum:defconst +move-flag-double+    #b00010)
 (serapeum:defconst +move-flag-ep+        #b00100)
@@ -274,3 +283,104 @@
             (push (emit-pawn-moves ep-cap-e cap-e-shift ep-flags) moves)
             (push (emit-pawn-moves ep-cap-w cap-w-shift ep-flags) moves)))
 	moves))))
+
+
+;; Castling move generation
+(serapeum:defconst +white-kingside-path+  (logior (ash 1 (sq :f1)) (ash 1 (sq :g1))))
+(serapeum:defconst +white-queenside-path+ (logior (ash 1 (sq :b1)) (ash 1 (sq :c1)) (ash 1 (sq :d1))))
+(serapeum:defconst +black-kingside-path+  (logior (ash 1 (sq :f8)) (ash 1 (sq :g8))))
+(serapeum:defconst +black-queenside-path+ (logior (ash 1 (sq :b8)) (ash 1 (sq :c8)) (ash 1 (sq :d8))))
+
+(defmacro with-castling-params (side &body body)
+  `(let ((kingside-right  (if (eq ,side :white) +white-kingside+  +black-kingside+))
+         (queenside-right (if (eq ,side :white) +white-queenside+ +black-queenside+))
+         (kingside-path   (if (eq ,side :white) +white-kingside-path+  +black-kingside-path+))
+         (queenside-path  (if (eq ,side :white) +white-queenside-path+ +black-queenside-path+))
+         (king-sq         (if (eq ,side :white) (sq :e1) (sq :e8)))
+         (kingside-sq     (if (eq ,side :white) (sq :g1) (sq :g8)))
+         (queenside-sq    (if (eq ,side :white) (sq :c1) (sq :c8))))
+     ,@body))
+
+(defun generate-castling-moves (position)
+  (with-position (side occupied friendly enemy) position
+    (with-castling-params side
+      (let ((rights (pos-castling position))
+	    (moves '()))
+	(when (and (logtest rights kingside-right)
+		   (not (logtest occupied kingside-path)))
+	  (push (make-move king-sq kingside-sq nil +move-flag-kingside+) moves))
+	(when (and (logtest rights queenside-right)
+		   (not (logtest occupied queenside-path)))
+	  (push (make-move king-sq queenside-sq nil +move-flag-queenside+) moves))
+	moves))))
+
+
+;; Final stages, move legality and actually making the moves
+(defun do-move (position move)
+  (let* ((new-pos (copy-position position))
+         (side    (pos-side-to-move new-pos))
+         (opp     (opponent side))
+	 (pawn-dir (if (eq side :white) -8 +8)))
+    (with-move (from to promotion flags) move
+
+      ;; First handle captures
+      (when (move-has-flag? move :capture)
+	(if (move-has-flag? move :ep)
+	    ;; En-passant slightly different
+	    (remove-piece! new-pos
+			   (+ to pawn-dir)
+			   (colored-piece-index :pawn opp))
+	    (remove-piece! new-pos
+			   to
+			   (colored-piece-index (piece-at new-pos to) opp))))
+
+      ;; Now actually move the piece and update all the boards
+      (let ((cpc (colored-piece-index (piece-at new-pos from) side)))
+	(remove-piece! new-pos from cpc)
+	(place-piece! new-pos to cpc)
+	;; If promotion just replace over it
+	(when promotion
+	  (remove-piece! new-pos to cpc)
+	  (place-piece! new-pos to (colored-piece-index promotion side))))
+
+      ;; Castling and relocate rook
+      (let ((rook-cpc (colored-piece-index :rook side)))
+	(cond
+	  ((move-has-flag? move :kingside)
+	   (remove-piece! new-pos (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc)
+           (place-piece!  new-pos (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc))
+	  ((move-has-flag? move :queenside)
+	   (remove-piece! new-pos (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc)
+           (place-piece!  new-pos (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc))))
+
+
+      ;; Set the new en passant square: only on a double pawn push, one
+      ;; rank behind the destination.
+      (setf (pos-ep-square new-pos)
+	    (when (move-has-flag? move :double)
+	      (+ to pawn-dir)))
+
+      ;; Update castling rights. Both `from` and `to` are checked so
+      ;; capturing a rook on its home square strips that right
+      ;; automatically.
+      (setf (pos-castling new-pos)
+            (logand (pos-castling new-pos)
+                    (logand (aref +castling-rights-mask+ from)
+                            (aref +castling-rights-mask+ to))))
+
+      ;; Halfmove clock: reset on pawn move or capture, otherwise
+      ;; increment.
+      (setf (pos-halfmove-clock new-pos)
+            (if (or (eq (piece-at position from) :pawn)
+                    (move-has-flag? move :capture))
+                0
+                (1+ (pos-halfmove-clock new-pos))))
+
+      ;; Fullmove number increments after black's reply.
+      (when (eq side :black)
+        (incf (pos-fullmove-number new-pos)))
+
+      ;; Flip the side to move.
+      (setf (pos-side-to-move new-pos) opp))
+    new-pos))
+
