@@ -10,16 +10,16 @@
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
 (defparameter +lone-knight-fen+
-  "8/8/8/3N4/8/8/8/8 w - - 0 1")
+  "4k3/8/8/3N4/8/8/8/4K3 w - - 0 1")
 
 (defparameter +pawn-capture-fen+
-  "8/8/8/3p4/4P3/8/8/4K3 w - - 0 1")
+  "4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1")
 
 (defparameter +check-fen+
   "4k3/8/8/8/8/8/4R3/4K3 b - - 0 1")
 
 (defparameter +promotion-fen+
-  "8/4P3/8/8/8/8/8/4K3 w - - 0 1")
+  "4k3/4P3/8/8/8/8/8/4K3 w - - 0 1")
 
 (defun find-move (moves from-square to-square &key promotion)
   "Return the first move in MOVES that matches FROM-SQUARE/TO-SQUARE and optional PROMOTION."
@@ -56,7 +56,7 @@
     (ok (eq :black (opponent :white)))
     (ok (eq :white (opponent :black)))))
 
-(deftest test-find-move
+(deftest test-move-extraction-helpers
   (testing "find-move locates moves by from/to and promotion"
     (let* ((pos (position-from-fen +start-fen+))
            (moves (generate-moves pos))
