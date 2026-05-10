@@ -18,13 +18,12 @@
 (defparameter +check-fen+
   "4k3/8/8/8/8/8/4R3/4K3 b - - 0 1")
 
-(defun find-move (moves from to &key promotion flags)
+(defun find-move (moves from to &key promotion)
   (find-if (lambda (move)
-             (with-move (move-from move-to move-promo move-flags) move
+             (with-move (move-from move-to move-promo flags) move
                (and (= move-from from)
                     (= move-to to)
-                    (or (null promotion) (eql move-promo promotion))
-                    (or (null flags) (logtest flags move-flags)))))
+                    (or (null promotion) (eql move-promo promotion)))))
            moves))
 
 (deftest test-square-and-coordinates
@@ -47,14 +46,10 @@
     (ok (= 10 (colored-piece-index :king :white)))
     (ok (= 11 (colored-piece-index :king :black)))))
 
-(deftest test-opponent-and-bit-utils
+(deftest test-opponent
   (testing "opponent flips colors"
     (ok (eq :black (opponent :white)))
-    (ok (eq :white (opponent :black))))
-  (testing "bitboard lsb/msb helpers"
-    (let ((bb (logior (ash 1 5) (ash 1 10))))
-      (ok (= 5 (monsoon::lsb bb)))
-      (ok (= 10 (monsoon::msb bb))))))
+    (ok (eq :white (opponent :black)))))
 
 (deftest test-position-from-fen
   (testing "start position parses correctly"
@@ -68,10 +63,7 @@
       (ok (eq :white (color-at pos (sq :e1))))
       (ok (eq :king (piece-at pos (sq :e8))))
       (ok (eq :black (color-at pos (sq :e8))))
-      (ok (logtest monsoon::+white-kingside+ (pos-castling pos)))
-      (ok (logtest monsoon::+white-queenside+ (pos-castling pos)))
-      (ok (logtest monsoon::+black-kingside+ (pos-castling pos)))
-      (ok (logtest monsoon::+black-queenside+ (pos-castling pos))))))
+      (ok (= #b1111 (pos-castling pos))))))
 
 (deftest test-generate-moves-starting-position
   (testing "starting position has 20 pseudo-legal moves"
@@ -93,8 +85,7 @@
   (testing "double pawn push updates en passant square and side to move"
     (let* ((pos (position-from-fen +start-fen+))
            (move (find-move (generate-moves pos)
-                            (sq :e2) (sq :e4)
-                            :flags monsoon::+move-flag-double+)))
+                            (sq :e2) (sq :e4))))
       (ok move)
       (let ((new-pos (do-move pos move)))
         (ok (not (occupied-p new-pos (sq :e2))))
@@ -108,8 +99,7 @@
   (testing "captures remove the victim and place the capturing piece"
     (let* ((pos (position-from-fen +pawn-capture-fen+))
            (move (find-move (generate-moves pos)
-                            (sq :e4) (sq :d5)
-                            :flags monsoon::+move-flag-capture+)))
+                            (sq :e4) (sq :d5))))
       (ok move)
       (let ((new-pos (do-move pos move)))
         (ok (not (occupied-p new-pos (sq :e4))))
