@@ -19,7 +19,11 @@ use them.
 
 ## Piece indexing
 
-- `colored-piece-index` — returns an index `[0, 11]` for a piece/color pair.
+- `colored-piece-index` — returns an index `[0, 11]` for a piece/color pair. 
+
+The formula that acquires it is `(+ (* piece 2) color)`, so all black
+pieces are odd, and white pieces are even. The specific values can be
+seen in `src/types.lisp`.
 
 ## Position representation
 
@@ -29,8 +33,7 @@ use them.
 - `pos-boards` — bitboards for each colored piece (12 entries).
 - `pos-by-color` — bitboards for each color (2 entries).
 - `pos-by-piece` — bitboards for each piece kind (6 entries).
-- `pos-occupied-sqaures` — exported misspelling of the occupied-squares bitboard.
-  Note: the struct accessor is spelled `pos-occupied-squares` in the source.
+- `pos-occupied-squares` — bitboard for all occupied squares
 - `pos-side-to-move` — `:white` or `:black`.
 - `pos-castling` — castling rights bitmask.
 - `pos-ep-square` — en passant square or `NIL`.
@@ -41,7 +44,7 @@ use them.
 - `occupied-p` — returns true if a square is occupied.
 - `color-at` — returns the occupant color (assumes occupied).
 - `piece-at` — returns the occupant piece type (assumes occupied).
-- `occupant-at` — returns `(values piece color)` or `(values NIL NIL)`.
+- `occupant-at` — returns `(values piece color)` or `(values NIL NIL)` if empty.
 - `with-square` — macro binding `piece` and `color` at a square.
 - `opponent` — returns the opposite color.
 
