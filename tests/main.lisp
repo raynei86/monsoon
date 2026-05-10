@@ -1,7 +1,10 @@
 (defpackage monsoon/tests/main
   (:use :cl
         :monsoon
-        :rove))
+        :rove)
+  (:shadow cl:position)) ;; Don't do this in actual code! This is only
+			 ;; because I am (:use :monsoon), which you
+			 ;; shouldn't do in an actual codebase anyways
 (in-package :monsoon/tests/main)
 
 ;; NOTE: To run this test file, execute `(asdf:test-system :monsoon)' in your Lisp.
@@ -19,13 +22,13 @@
   "4k3/8/8/8/8/8/4R3/4K3 b - - 0 1")
 
 (defparameter +promotion-fen+
-  "4k3/4P3/8/8/8/8/8/4K3 w - - 0 1")
+  "2k5/4P3/8/8/8/8/8/4K3 w - - 0 1")
 
 (defun find-move (moves from-square to-square &key promotion)
   "Return the first move in MOVES that matches FROM-SQUARE/TO-SQUARE and optional PROMOTION, or NIL if no matching move is found."
   (find-if (lambda (move)
              (with-move (from to move-promotion flags) move
-               (declare (ignore flags))
+               
                (and (= from from-square)
                     (= to to-square)
                     (or (null promotion) (eql move-promotion promotion)))))
@@ -63,7 +66,7 @@
            (move (find-move moves (sq :g1) (sq :f3))))
       (ok move)
       (with-move (from to promotion flags) move
-        (declare (ignore flags))
+        
         (ok (= (sq :g1) from))
         (ok (= (sq :f3) to))
         (ok (null promotion)))
@@ -75,13 +78,12 @@
            (default-move (find-move moves (sq :e7) (sq :e8))))
       (ok move)
       (with-move (from to promotion flags) move
-        (declare (ignore flags))
+        
         (ok (= (sq :e7) from))
         (ok (= (sq :e8) to))
         (ok (eq :queen promotion)))
       (ok default-move)
       (with-move (from to promotion flags) default-move
-        (declare (ignore flags))
         (ok (= (sq :e7) from))
         (ok (= (sq :e8) to))
         (ok (eq :queen promotion))))))
@@ -91,8 +93,8 @@
     (let ((pos (position-from-fen +starting-position-fen+)))
       (ok (eq :white (pos-side-to-move pos)))
       (ok (null (pos-ep-square pos)))
-      (ok (= 0 (pos-halfmove-clock pos)))
-      (ok (= 1 (pos-fullmove-number pos)))
+      (ok (= 0 (monsoon::pos-halfmove-clock pos)))
+      (ok (= 1 (monsoon::pos-fullmove-number pos)))
       (ok (occupied-p pos (sq :e1)))
       (ok (eq :king (piece-at pos (sq :e1))))
       (ok (eq :white (color-at pos (sq :e1))))
