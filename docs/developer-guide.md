@@ -60,23 +60,3 @@ king move is emitted, and `do-move` relocates the rook based on flags.
 - Using ray attacks for bishop/rook/queen sliders.
 
 This avoids generating all opponent moves and keeps check detection local.
-
-## Style and design choices
-
-- Bitboards and small fixed-size arrays are used for performance and compact
-  memory layout.
-- Iterate (`iterate` package) is used to express bitboard scans and table
-  generation concisely.
-- `serapeum:defconst` is used for immutable bitboard constants and lookup
-  tables.
-- Macros (`with-position`, `with-move`, `with-square`) provide ergonomic access
-  to core data while keeping hot paths succinct.
-
-## Extending the codebase
-
-When adding new features:
-
-- Keep `position` updates centralized so all bitboards stay consistent.
-- Prefer extending or reusing existing attack/ray helpers for new move logic.
-- Maintain the existing split between pseudo-legal generation and legality
-  filtering to keep move generation fast and predictable.
