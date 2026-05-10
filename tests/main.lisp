@@ -6,7 +6,7 @@
 
 ;; NOTE: To run this test file, execute `(asdf:test-system :monsoon)' in your Lisp.
 
-(defparameter +start-fen+
+(defparameter +starting-position-fen+
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
 (defparameter +lone-knight-fen+
@@ -22,7 +22,7 @@
   "4k3/4P3/8/8/8/8/8/4K3 w - - 0 1")
 
 (defun find-move (moves from-square to-square &key promotion)
-  "Return the first move in MOVES that matches FROM-SQUARE/TO-SQUARE and optional PROMOTION."
+  "Return the first move in MOVES that matches FROM-SQUARE/TO-SQUARE and optional PROMOTION, or NIL when absent."
   (find-if (lambda (move)
              (with-move (from to move-promotion flags) move
                (declare (ignore flags))
@@ -58,7 +58,7 @@
 
 (deftest test-find-move-helper
   (testing "find-move locates moves by from/to and promotion"
-    (let* ((pos (position-from-fen +start-fen+))
+    (let* ((pos (position-from-fen +starting-position-fen+))
            (moves (generate-moves pos))
            (move (find-move moves (sq :g1) (sq :f3))))
       (ok move)
@@ -88,7 +88,7 @@
 
 (deftest test-position-from-fen
   (testing "start position parses correctly"
-    (let ((pos (position-from-fen +start-fen+)))
+    (let ((pos (position-from-fen +starting-position-fen+)))
       (ok (eq :white (pos-side-to-move pos)))
       (ok (null (pos-ep-square pos)))
       (ok (= 0 (pos-halfmove-clock pos)))
@@ -102,7 +102,7 @@
 
 (deftest test-generate-moves-starting-position
   (testing "starting position has 20 pseudo-legal moves"
-    (let* ((pos (position-from-fen +start-fen+))
+    (let* ((pos (position-from-fen +starting-position-fen+))
            (moves (generate-moves pos)))
       (ok (= 20 (length moves)))
       (ok (find-move moves (sq :g1) (sq :f3)))
@@ -123,9 +123,11 @@
                           (with-move (from to promotion flags) move
                             (declare (ignore to promotion flags))
                             (= from (sq :e1))))
-                        moves)))
-      (ok (= 8 (length knight-moves)))
-      (ok (= 5 (length king-moves)))
+                        moves))
+           (expected-knight-moves 8)
+           (expected-king-moves 5))
+      (ok (= expected-knight-moves (length knight-moves)))
+      (ok (= expected-king-moves (length king-moves)))
       (ok (find-move knight-moves (sq :d5) (sq :f6)))
       (ok (find-move knight-moves (sq :d5) (sq :b4)))
       (ok (find-move king-moves (sq :e1) (sq :d1)))
@@ -136,7 +138,7 @@
 
 (deftest test-do-move-double-push
   (testing "double pawn push updates en passant square and side to move"
-    (let* ((pos (position-from-fen +start-fen+))
+    (let* ((pos (position-from-fen +starting-position-fen+))
            (move (find-move (generate-moves pos)
                             (sq :e2) (sq :e4))))
       (ok move)
