@@ -18,7 +18,7 @@
    #:pos-boards
    #:pos-by-color
    #:pos-by-piece
-   #:pos-occupied-sqaures
+   #:pos-occupied-squares
    #:pos-side-to-move
    #:pos-castling
    #:pos-ep-square
