@@ -3,7 +3,7 @@
 
 (in-package #:monsoon)
 
-(declaim (inline color-index piece-index colored-piece-index))
+(declaim (inline file-of rank-of color-index piece-index colored-piece-index))
 
 ;; Squares and board
 (deftype square ()
