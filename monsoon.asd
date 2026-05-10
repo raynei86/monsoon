@@ -5,7 +5,7 @@
   :depends-on ("iterate" "serapeum")
   :components ((:module "src"
                 :components
-                ((:file "main")
+                ((:file "package")
 		 (:file "types")
 		 (:file "position" :depends-on ("types"))
 		 (:file "utils" :depends-on ("types"))
