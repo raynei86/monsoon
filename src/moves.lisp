@@ -17,8 +17,7 @@
          (,to        (move-to        ,move))
          (,promotion (move-promotion ,move))
          (,flags     (move-flags     ,move)))
-     (declare (ignorable flags)) ;; Yeah, because it's kinda useless
-				 ;; when you have `move-has-flag?`
+     (declare (ignorable ,flags))
      ,@body))
 
 (serapeum:defconst +move-flag-capture+   #b00001)
