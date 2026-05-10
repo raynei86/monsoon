@@ -56,7 +56,7 @@
     (ok (eq :black (opponent :white)))
     (ok (eq :white (opponent :black)))))
 
-(deftest test-move-extraction-helpers
+(deftest test-find-move-helper
   (testing "find-move locates moves by from/to and promotion"
     (let* ((pos (position-from-fen +start-fen+))
            (moves (generate-moves pos))
@@ -127,7 +127,12 @@
       (ok (= 8 (length knight-moves)))
       (ok (= 5 (length king-moves)))
       (ok (find-move knight-moves (sq :d5) (sq :f6)))
-      (ok (find-move knight-moves (sq :d5) (sq :b4))))))
+      (ok (find-move knight-moves (sq :d5) (sq :b4)))
+      (ok (find-move king-moves (sq :e1) (sq :d1)))
+      (ok (find-move king-moves (sq :e1) (sq :f1)))
+      (ok (find-move king-moves (sq :e1) (sq :d2)))
+      (ok (find-move king-moves (sq :e1) (sq :e2)))
+      (ok (find-move king-moves (sq :e1) (sq :f2))))))
 
 (deftest test-do-move-double-push
   (testing "double pawn push updates en passant square and side to move"
