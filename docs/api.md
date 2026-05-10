@@ -29,7 +29,7 @@ use them.
 - `pos-boards` — bitboards for each colored piece (12 entries).
 - `pos-by-color` — bitboards for each color (2 entries).
 - `pos-by-piece` — bitboards for each piece kind (6 entries).
-- `pos-occupied-sqaures` — exported name for occupied-square bitboard.
+- `pos-occupied-sqaures` — exported misspelling of the occupied-squares bitboard.
   Note: the struct accessor is spelled `pos-occupied-squares` in the source.
 - `pos-side-to-move` — `:white` or `:black`.
 - `pos-castling` — castling rights bitmask.
