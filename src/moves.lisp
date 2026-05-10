@@ -27,23 +27,6 @@
 (serapeum:defconst +move-flag-kingside+  #b01000)
 (serapeum:defconst +move-flag-queenside+ #b10000)
 
-(defun move-has-flag? (move flag-keyword)
-  "A neat wrapper to avoid bit fiddling
-   The flags are:
-   - :capture
-   - :double
-   - :ep
-   - :kingside
-   - :queenside"
-  (declare (type move move) (type keyword flag-keyword))
-  (logtest (move-flags move)
-           (ecase flag-keyword
-             (:capture   +move-flag-capture+)
-             (:double    +move-flag-double+)
-             (:ep        +move-flag-ep+)
-             (:kingside  +move-flag-kingside+)
-             (:queenside +move-flag-queenside+))))
-
 (defun emit-moves (from targets-bb &optional (flags 0))
   (declare (type square from)
 	   (type bitboard targets-bb))
@@ -349,8 +332,8 @@
      (with-move (from to promotion flags) move
 
        ;; First handle captures
-       (when (move-has-flag? move :capture)
-	 (if (move-has-flag? move :ep)
+       (when (logtest flags +move-flag-capture+)
+	 (if (logtest flags +move-flag-ep+)
 	     ;; En-passant slightly different
 	     (remove-piece! new-pos
 			    (+ to pawn-dir)
@@ -371,10 +354,10 @@
        ;; Castling and relocate rook
        (let ((rook-cpc (colored-piece-index :rook side)))
 	 (cond
-	   ((move-has-flag? move :kingside)
+	   ((logtest flags +move-flag-kingside+)
 	    (remove-piece! new-pos (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc)
             (place-piece!  new-pos (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc))
-	   ((move-has-flag? move :queenside)
+	   ((logtest flags +move-flag-queenside+)
 	    (remove-piece! new-pos (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc)
             (place-piece!  new-pos (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc))))
 
@@ -382,7 +365,7 @@
        ;; Set the new en passant square: only on a double pawn push, one
        ;; rank behind the destination.
        (setf (pos-ep-square new-pos)
-	     (when (move-has-flag? move :double)
+	     (when (logtest flags +move-flag-double+)
 	       (+ to pawn-dir)))
 
        ;; Update castling rights. Both `from` and `to` are checked so
@@ -397,7 +380,7 @@
        ;; increment.
        (setf (pos-halfmove-clock new-pos)
              (if (or (eq (piece-at position from) :pawn)
-                     (move-has-flag? move :capture))
+                     (logtest flags +move-flag-capture+))
                  0
                  (1+ (pos-halfmove-clock new-pos))))
 
