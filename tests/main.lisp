@@ -24,10 +24,11 @@
 (defun find-move (moves from-square to-square &key promotion)
   "Return the first move in MOVES that matches FROM-SQUARE/TO-SQUARE and optional PROMOTION."
   (find-if (lambda (move)
-             (with-move (from to promo flags) move
+             (with-move (from to move-promotion flags) move
+               (declare (ignore flags))
                (and (= from from-square)
                     (= to to-square)
-                    (or (null promotion) (eql promo promotion)))))
+                    (or (null promotion) (eql move-promotion promotion)))))
            moves))
 
 (deftest test-square-and-coordinates
@@ -62,6 +63,7 @@
            (move (find-move moves (sq :g1) (sq :f3))))
       (ok move)
       (with-move (from to promotion flags) move
+        (declare (ignore flags))
         (ok (= (sq :g1) from))
         (ok (= (sq :f3) to))
         (ok (null promotion)))
@@ -73,11 +75,13 @@
            (default-move (find-move moves (sq :e7) (sq :e8))))
       (ok move)
       (with-move (from to promotion flags) move
+        (declare (ignore flags))
         (ok (= (sq :e7) from))
         (ok (= (sq :e8) to))
         (ok (eq :queen promotion)))
       (ok default-move)
       (with-move (from to promotion flags) default-move
+        (declare (ignore flags))
         (ok (= (sq :e7) from))
         (ok (= (sq :e8) to))
         (ok (eq :queen promotion))))))
