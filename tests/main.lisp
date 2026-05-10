@@ -21,13 +21,13 @@
 (defparameter +promotion-fen+
   "8/4P3/8/8/8/8/8/4K3 w - - 0 1")
 
-(defun find-move (moves from to &key promotion)
-  "Return the first move in MOVES that matches FROM/TO and optional PROMOTION."
+(defun find-move (moves from-square to-square &key promotion)
+  "Return the first move in MOVES that matches FROM-SQUARE/TO-SQUARE and optional PROMOTION."
   (find-if (lambda (move)
-             (with-move (move-from move-to move-promo flags) move
-               (and (= move-from from)
-                    (= move-to to)
-                    (or (null promotion) (eql move-promo promotion)))))
+             (with-move (from to promo flags) move
+               (and (= from from-square)
+                    (= to to-square)
+                    (or (null promotion) (eql promo promotion)))))
            moves))
 
 (deftest test-square-and-coordinates
