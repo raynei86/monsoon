@@ -19,9 +19,11 @@ use them.
 
 ## Piece indexing
 
-- `colored-piece-index` — returns an index `[0, 11]` for a piece/color pair. 
+- `colored-piece-index` — returns an index `[0, 11]` for a piece/color pair,
+  where `piece` and `color` are keywords such as `:pawn` and `:white`.
 
-The formula that acquires it is `(+ (* piece 2) color)`, so all black
+Internally, the index is computed as
+`(+ (* (piece-index piece) 2) (color-index color))`, so all black
 pieces are odd, and white pieces are even. The specific values can be
 seen in `src/types.lisp`.
 
