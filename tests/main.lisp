@@ -22,7 +22,7 @@
   "4k3/4P3/8/8/8/8/8/4K3 w - - 0 1")
 
 (defun find-move (moves from-square to-square &key promotion)
-  "Return the first move in MOVES that matches FROM-SQUARE/TO-SQUARE and optional PROMOTION, or NIL when absent."
+  "Return the first move in MOVES that matches FROM-SQUARE/TO-SQUARE and optional PROMOTION, or NIL if no matching move is found."
   (find-if (lambda (move)
              (with-move (from to move-promotion flags) move
                (declare (ignore flags))
@@ -124,10 +124,10 @@
                             (declare (ignore to promotion flags))
                             (= from (sq :e1))))
                         moves))
-           (expected-knight-moves 8)
-           (expected-king-moves 5))
-      (ok (= expected-knight-moves (length knight-moves)))
-      (ok (= expected-king-moves (length king-moves)))
+           (expected-knight-move-count 8)
+           (expected-king-move-count 5))
+      (ok (= expected-knight-move-count (length knight-moves)))
+      (ok (= expected-king-move-count (length king-moves)))
       (ok (find-move knight-moves (sq :d5) (sq :f6)))
       (ok (find-move knight-moves (sq :d5) (sq :b4)))
       (ok (find-move king-moves (sq :e1) (sq :d1)))
