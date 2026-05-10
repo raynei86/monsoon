@@ -18,7 +18,11 @@
 (defparameter +check-fen+
   "4k3/8/8/8/8/8/4R3/4K3 b - - 0 1")
 
+(defparameter +promotion-fen+
+  "8/4P3/8/8/8/8/8/4K3 w - - 0 1")
+
 (defun find-move (moves from to &key promotion)
+  "Return the first move in MOVES that matches FROM/TO and optional PROMOTION."
   (find-if (lambda (move)
              (with-move (move-from move-to move-promo flags) move
                (and (= move-from from)
@@ -50,6 +54,17 @@
   (testing "opponent flips colors"
     (ok (eq :black (opponent :white)))
     (ok (eq :white (opponent :black)))))
+
+(deftest test-find-move
+  (testing "find-move locates moves by from/to and promotion"
+    (let* ((pos (position-from-fen +start-fen+))
+           (moves (generate-moves pos)))
+      (ok (find-move moves (sq :g1) (sq :f3)))
+      (ok (not (find-move moves (sq :g1) (sq :g3))))))
+  (testing "find-move matches promotion moves"
+    (let* ((pos (position-from-fen +promotion-fen+))
+           (moves (generate-moves pos)))
+      (ok (find-move moves (sq :e7) (sq :e8) :promotion :queen)))))
 
 (deftest test-position-from-fen
   (testing "start position parses correctly"
