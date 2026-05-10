@@ -7,11 +7,20 @@
 
 ;; Squares and board
 (deftype square ()
-  "A chess board square. It's a number in the range [0, 64]"
-  '(mod 64))
+  "A chess board square. It's a number in the range [0, 63]"
+  '(unsigned-byte 6))
+
+(defmacro sq (name)
+  "Translates a symbol like :e4 to an integer like 28"
+  (when (symbolp name)
+      (let* ((str (symbol-name name))
+             (file (- (char-code (char-downcase (char str 0))) (char-code #\a)))
+             (rank (1- (digit-char-p (char str 1)))))
+        (+ (* rank 8) file))))
+
 
 (deftype bitboard ()
-  "A bitboard represented using a 64bit integer."
+  "A bitboard represented using a 64-bit integer."
   '(unsigned-byte 64))
 
 (serapeum:defconst +full-board+ #xFFFFFFFFFFFFFFFF)
@@ -56,14 +65,6 @@
   (declare (type square square))
   (values (floor square 8)))
 
-(defmacro sq (name)
-  "Translates a symbol like :e4 to an integer like 28"
-  (when (symbolp name)
-      (let* ((str (symbol-name name))
-             (file (- (char-code (char-downcase (char str 0))) (char-code #\a)))
-             (rank (1- (digit-char-p (char str 1)))))
-        (+ (* rank 8) file))))
-
 
 ;; Pieces and color
 (deftype color ()
@@ -76,7 +77,7 @@
 
 (deftype colored-piece-code ()
   "An integer representing a piece and its color"
-  '(integer 0 11))
+  '(unsigned-byte 4))
 
 (defun color-index (color)
   "Returns 0 for white, 1 for black"

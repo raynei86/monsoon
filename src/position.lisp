@@ -29,8 +29,8 @@
   (side-to-move :white :type color)
   (castling     0   :type castling-rights)
   (ep-square    nil   :type (or null square))
-  (halfmove-clock 0   :type (integer 0 100))
-  (fullmove-number 1   :type (integer 1 *))
+  (halfmove-clock 0   :type (unsigned-byte 7))
+  (fullmove-number 1   :type fixnum)
   (hash         0   :type hash-key))  ; Zobrist hash not implemented yet, keep it for now
 
 (defun occupied-p (position square)

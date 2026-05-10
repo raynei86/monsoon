@@ -45,6 +45,8 @@
              (:queenside +move-flag-queenside+))))
 
 (defun emit-moves (from targets-bb &optional (flags 0))
+  (declare (type square from)
+	   (type bitboard targets-bb))
   "Returns a list of moves from `from` to each target in `targets-bb`"
   (it:iter
     (for target in-bitboard targets-bb)
@@ -109,15 +111,25 @@
 	       (it:finally (return ray))))
        (it:finally (return table)))))
 
+(deftype ray-table () '(simple-array bitboard (64)))
+(deftype ray-set   () '(simple-array ray-table (8)))
+
 (serapeum:defconst +rays+
-  (list (cons :n (generate-ray-table :n))  (cons :ne (generate-ray-table :ne))
-	(cons :e (generate-ray-table :e))  (cons :se (generate-ray-table :se))
-	(cons :s (generate-ray-table :s))  (cons :sw (generate-ray-table :sw))
-	(cons :w (generate-ray-table :w))  (cons :nw (generate-ray-table :nw))))
+  (the ray-set
+       (make-array 8 :element-type 'ray-table
+		     :initial-contents
+		   (list (generate-ray-table :n) (generate-ray-table :ne)
+			 (generate-ray-table :e) (generate-ray-table :se)
+			 (generate-ray-table :s) (generate-ray-table :sw)
+			 (generate-ray-table :w) (generate-ray-table :nw)))))
 
 (defmacro ray (direction square)
   "Look up the precomputed ray mask for direction at a square"
-  `(aref (cdr (assoc ,direction +rays+)) ,square))
+  `(let ((dir-index (ecase ,direction
+		      (:n 0) (:ne 1) (:e 2) (:se 3)
+		      (:s 4) (:sw 5) (:w 6) (:nw 7))))
+   (the bitboard
+	 (aref (the ray-table (aref (the ray-set +rays+) dir-index)) ,square))))
 
 (defmacro ray-attacks (square direction occupied blocker-func)
   "Takes a square, direction of the ray, and a bitboard of occupied squares.
@@ -131,10 +143,16 @@
 	 (logxor ray (ray ,direction (,blocker-func blockers))))))
 
 (defun ray-attacks+ (square direction occupied)
+  (declare (type square square)
+	   (type keyword direction)
+	   (type bitboard occupied))
   "Attacks along a positive ray from square, cut off at first obstacle"
   (ray-attacks square direction occupied lsb))
 
 (defun ray-attacks- (square direction occupied)
+  (declare (type square square)
+	   (type keyword direction)
+	   (type bitboard occupied))
   "Attacks along a negative ray from square, cut off at first obstacle"
   (ray-attacks square direction occupied msb))
 
@@ -321,74 +339,74 @@
 	  (push (make-move king-sq queenside-sq nil +move-flag-queenside+) moves))
 	moves))))
 
-
 ;; Final stages, move legality and actually making the moves
 (defun do-move (position move)
   (let* ((new-pos (copy-position position))
          (side    (pos-side-to-move new-pos))
          (opp     (opponent side))
 	 (pawn-dir (if (eq side :white) -8 +8)))
-    (with-move (from to promotion flags) move
+    (serapeum:nest
+     (with-move (from to promotion flags) move
 
-      ;; First handle captures
-      (when (move-has-flag? move :capture)
-	(if (move-has-flag? move :ep)
-	    ;; En-passant slightly different
-	    (remove-piece! new-pos
-			   (+ to pawn-dir)
-			   (colored-piece-index :pawn opp))
-	    (remove-piece! new-pos
-			   to
-			   (colored-piece-index (piece-at new-pos to) opp))))
+       ;; First handle captures
+       (when (move-has-flag? move :capture)
+	 (if (move-has-flag? move :ep)
+	     ;; En-passant slightly different
+	     (remove-piece! new-pos
+			    (+ to pawn-dir)
+			    (colored-piece-index :pawn opp))
+	     (remove-piece! new-pos
+			    to
+			    (colored-piece-index (piece-at new-pos to) opp))))
 
-      ;; Now actually move the piece and update all the boards
-      (let ((cpc (colored-piece-index (piece-at new-pos from) side)))
-	(remove-piece! new-pos from cpc)
-	(place-piece! new-pos to cpc)
-	;; If promotion just replace over it
-	(when promotion
-	  (remove-piece! new-pos to cpc)
-	  (place-piece! new-pos to (colored-piece-index promotion side))))
+       ;; Now actually move the piece and update all the boards
+       (let ((cpc (colored-piece-index (piece-at new-pos from) side)))
+	 (remove-piece! new-pos from cpc)
+	 (place-piece! new-pos to cpc)
+	 ;; If promotion just replace over it
+	 (when promotion
+	   (remove-piece! new-pos to cpc)
+	   (place-piece! new-pos to (colored-piece-index promotion side))))
 
-      ;; Castling and relocate rook
-      (let ((rook-cpc (colored-piece-index :rook side)))
-	(cond
-	  ((move-has-flag? move :kingside)
-	   (remove-piece! new-pos (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc)
-           (place-piece!  new-pos (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc))
-	  ((move-has-flag? move :queenside)
-	   (remove-piece! new-pos (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc)
-           (place-piece!  new-pos (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc))))
+       ;; Castling and relocate rook
+       (let ((rook-cpc (colored-piece-index :rook side)))
+	 (cond
+	   ((move-has-flag? move :kingside)
+	    (remove-piece! new-pos (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc)
+            (place-piece!  new-pos (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc))
+	   ((move-has-flag? move :queenside)
+	    (remove-piece! new-pos (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc)
+            (place-piece!  new-pos (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc))))
 
       
-      ;; Set the new en passant square: only on a double pawn push, one
-      ;; rank behind the destination.
-      (setf (pos-ep-square new-pos)
-	    (when (move-has-flag? move :double)
-	      (+ to pawn-dir)))
+       ;; Set the new en passant square: only on a double pawn push, one
+       ;; rank behind the destination.
+       (setf (pos-ep-square new-pos)
+	     (when (move-has-flag? move :double)
+	       (+ to pawn-dir)))
 
-      ;; Update castling rights. Both `from` and `to` are checked so
-      ;; capturing a rook on its home square strips that right
-      ;; automatically.
-      (setf (pos-castling new-pos)
-            (logand (pos-castling new-pos)
-                    (logand (aref +castling-rights-mask+ from)
-                            (aref +castling-rights-mask+ to))))
+       ;; Update castling rights. Both `from` and `to` are checked so
+       ;; capturing a rook on its home square strips that right
+       ;; automatically.
+       (setf (pos-castling new-pos)
+             (logand (pos-castling new-pos)
+                     (logand (aref +castling-rights-mask+ from)
+                             (aref +castling-rights-mask+ to))))
 
-      ;; Halfmove clock: reset on pawn move or capture, otherwise
-      ;; increment.
-      (setf (pos-halfmove-clock new-pos)
-            (if (or (eq (piece-at position from) :pawn)
-                    (move-has-flag? move :capture))
-                0
-                (1+ (pos-halfmove-clock new-pos))))
+       ;; Halfmove clock: reset on pawn move or capture, otherwise
+       ;; increment.
+       (setf (pos-halfmove-clock new-pos)
+             (if (or (eq (piece-at position from) :pawn)
+                     (move-has-flag? move :capture))
+                 0
+                 (1+ (pos-halfmove-clock new-pos))))
 
-      ;; Fullmove number increments after black's reply.
-      (when (eq side :black)
-        (incf (pos-fullmove-number new-pos)))
+       ;; Fullmove number increments after black's reply.
+       (when (eq side :black)
+         (incf (pos-fullmove-number new-pos)))
 
-      ;; Flip the side to move.
-      (setf (pos-side-to-move new-pos) opp))
+       ;; Flip the side to move.
+       (setf (pos-side-to-move new-pos) opp)))
     new-pos))
 
 (defun generate-moves (position)
