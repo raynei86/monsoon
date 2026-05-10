@@ -109,12 +109,25 @@
       (ok (find-move moves (sq :b1) (sq :c3))))))
 
 (deftest test-knight-moves-from-center
-  (testing "a lone knight has eight moves from d5"
+  (testing "knight moves are generated from d5"
     (let* ((pos (position-from-fen +lone-knight-fen+))
-           (moves (generate-moves pos)))
-      (ok (= 8 (length moves)))
-      (ok (find-move moves (sq :d5) (sq :f6)))
-      (ok (find-move moves (sq :d5) (sq :b4))))))
+           (moves (generate-moves pos))
+           (knight-moves (remove-if-not
+                          (lambda (move)
+                            (with-move (from to promotion flags) move
+                              (declare (ignore to promotion flags))
+                              (= from (sq :d5))))
+                          moves))
+           (king-moves (remove-if-not
+                        (lambda (move)
+                          (with-move (from to promotion flags) move
+                            (declare (ignore to promotion flags))
+                            (= from (sq :e1))))
+                        moves)))
+      (ok (= 8 (length knight-moves)))
+      (ok (= 5 (length king-moves)))
+      (ok (find-move knight-moves (sq :d5) (sq :f6)))
+      (ok (find-move knight-moves (sq :d5) (sq :b4))))))
 
 (deftest test-do-move-double-push
   (testing "double pawn push updates en passant square and side to move"
