@@ -58,13 +58,29 @@
 (deftest test-find-move
   (testing "find-move locates moves by from/to and promotion"
     (let* ((pos (position-from-fen +start-fen+))
-           (moves (generate-moves pos)))
-      (ok (find-move moves (sq :g1) (sq :f3)))
+           (moves (generate-moves pos))
+           (move (find-move moves (sq :g1) (sq :f3))))
+      (ok move)
+      (with-move (from to promotion flags) move
+        (ok (= (sq :g1) from))
+        (ok (= (sq :f3) to))
+        (ok (null promotion)))
       (ok (not (find-move moves (sq :g1) (sq :g3))))))
   (testing "find-move matches promotion moves"
     (let* ((pos (position-from-fen +promotion-fen+))
-           (moves (generate-moves pos)))
-      (ok (find-move moves (sq :e7) (sq :e8) :promotion :queen)))))
+           (moves (generate-moves pos))
+           (move (find-move moves (sq :e7) (sq :e8) :promotion :queen))
+           (default-move (find-move moves (sq :e7) (sq :e8))))
+      (ok move)
+      (with-move (from to promotion flags) move
+        (ok (= (sq :e7) from))
+        (ok (= (sq :e8) to))
+        (ok (eq :queen promotion)))
+      (ok default-move)
+      (with-move (from to promotion flags) default-move
+        (ok (= (sq :e7) from))
+        (ok (= (sq :e8) to))
+        (ok (eq :queen promotion))))))
 
 (deftest test-position-from-fen
   (testing "start position parses correctly"
