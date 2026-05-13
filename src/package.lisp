@@ -37,7 +37,7 @@
    #:generate-moves
    #:king-in-check-p
    #:legal-move-p
-   
+
    #:position-from-fen
 
    #:uci-engine

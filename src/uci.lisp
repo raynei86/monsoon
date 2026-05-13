@@ -140,9 +140,9 @@
          (rank-char (char square-str 1))
          (file (- (char-code file-char) (char-code #\a)))
          (rank (digit-char-p rank-char)))
-    (unless (and (<= 0 file 7)
-                 rank
-                 (<= 1 rank 8))
+    (unless (<= 0 file 7)
+      (error "Invalid square: ~a" square-str))
+    (unless (and rank (<= 1 rank 8))
       (error "Invalid square: ~a" square-str))
     (+ (* (1- rank) 8) file)))
 
@@ -183,9 +183,12 @@
 (defun uci-parse-integer (token name)
   (unless token
     (error "Missing value for ~a." name))
-  (let ((value (parse-integer token :junk-allowed nil)))
+  (let ((value (handler-case
+                   (parse-integer token :junk-allowed nil)
+                 (error ()
+                   (error "Invalid integer for ~a: ~a." name token)))))
     (when (minusp value)
-      (error "Invalid value for ~a: ~a." name token))
+      (error "Value for ~a must be non-negative: ~a." name token))
     value))
 
 (defun uci-parse-setoption (engine tokens)
@@ -223,7 +226,7 @@
         ((string= (string-downcase (first cursor)) "fen")
          (setf cursor (rest cursor))
          (when (< (length cursor) 6)
-           (error "position fen requires six fields."))
+           (error "position fen requires a complete FEN string with six fields."))
          (let ((fen (uci-join-tokens (subseq cursor 0 6))))
            (setf pos (position-from-fen fen))
            (setf cursor (nthcdr 6 cursor))))
