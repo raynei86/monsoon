@@ -95,6 +95,11 @@ a Monsoon `move` struct or a UCI string like `"e2e4"`.
 (defmethod monsoon:uci-engine-author ((engine my-engine))
   "Your Name")
 
+(defun my-best-move (position params)
+  ;; Replace with your own search.
+  (declare (ignore params))
+  (first (monsoon:generate-moves position)))
+
 (defmethod monsoon:uci-go ((engine my-engine) params)
   ;; Replace this with your existing search function.
   (let ((best (my-best-move (monsoon:uci-engine-position engine) params)))
