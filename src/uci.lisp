@@ -226,7 +226,7 @@
         ((string= (string-downcase (first cursor)) "fen")
          (setf cursor (rest cursor))
          (when (< (length cursor) 6)
-           (error "position fen requires a complete FEN string with six components."))
+           (error "position fen requires a complete FEN string (six space-separated fields)."))
          (let ((fen (uci-join-tokens (subseq cursor 0 6))))
            (setf pos (position-from-fen fen))
            (setf cursor (nthcdr 6 cursor))))
