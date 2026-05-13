@@ -227,7 +227,7 @@
         ((string= (string-downcase (first cursor)) "fen")
          (setf cursor (rest cursor))
          (when (< (length cursor) 6)
-           (error "position fen requires a complete FEN string (six space-separated fields)."))
+           (error "position fen requires a complete FEN string with six fields."))
          (let* ((fen-fields (subseq cursor 0 6))
                 (rest (nthcdr 6 cursor)))
            (when (and rest
