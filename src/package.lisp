@@ -37,6 +37,7 @@
    #:generate-moves
    #:king-in-check-p
    #:legal-move-p
+   #:generate-legal-moves
 
    #:position-from-fen
 

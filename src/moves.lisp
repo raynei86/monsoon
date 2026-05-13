@@ -436,6 +436,10 @@
   (let ((new-pos (do-move pos move)))
     (not (king-in-check-p new-pos (pos-side-to-move pos)))))
 
+(defun generate-legal-moves (pos)
+  (let ((legal-move (lambda (move) (legal-move-p pos move))))
+    (delete-if-not legal-move (generate-moves pos))))
+
 (defun perft (pos depth)
   (if (zerop depth)
       1
