@@ -39,5 +39,47 @@
    #:legal-move-p
 
    #:position-from-fen
-   ))
 
+   #:uci-engine
+   #:uci-engine-position
+   #:uci-engine-option-values
+   #:uci-engine-debug
+   #:uci-engine-name
+   #:uci-engine-author
+   #:uci-engine-options
+   #:uci-new-game
+   #:uci-set-option
+   #:uci-position-updated
+   #:uci-go
+   #:uci-stop
+   #:uci-ponderhit
+   #:uci-ready
+   #:uci-quit
+   #:uci-run
+   #:uci-handle-line
+   #:+uci-startpos-fen+
+   #:uci-option
+   #:make-uci-option
+   #:uci-option-name
+   #:uci-option-type
+   #:uci-option-default
+   #:uci-option-min
+   #:uci-option-max
+   #:uci-option-vars
+   #:uci-go-parameters
+   #:make-uci-go-parameters
+   #:uci-go-param-searchmoves
+   #:uci-go-param-ponder
+   #:uci-go-param-wtime
+   #:uci-go-param-btime
+   #:uci-go-param-winc
+   #:uci-go-param-binc
+   #:uci-go-param-movestogo
+   #:uci-go-param-depth
+   #:uci-go-param-nodes
+   #:uci-go-param-mate
+   #:uci-go-param-movetime
+   #:uci-go-param-infinite
+   #:uci-parse-move
+   #:uci-move-string
+   ))

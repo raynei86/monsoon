@@ -63,6 +63,68 @@ seen in `src/types.lisp`.
 
 - `position-from-fen` — constructs a `position` from a FEN string.
 
+## UCI protocol
+
+- `uci-engine` — base class for UCI-capable engines. Override
+  `uci-engine-name`, `uci-engine-author`, and `uci-go` at minimum.
+- `+uci-startpos-fen+` — FEN string for the standard starting position.
+- `uci-run` — read/evaluate UCI commands from an input stream and emit
+  responses to an output stream.
+- `uci-handle-line` — parse a single UCI command line and dispatch it
+  to the appropriate engine hooks.
+- `uci-go-parameters` — struct holding parsed `go` command settings,
+  accessible via `uci-go-param-depth`, `uci-go-param-wtime`,
+  `uci-go-param-searchmoves`, etc.
+- `uci-option` — struct describing an engine option. Provide a list of
+  these via `uci-engine-options`.
+- `uci-parse-move` — parse and validate a UCI move string in a given position.
+- `uci-move-string` — format a move (or `NIL`) into a UCI move string.
+
+### UCI quickstart
+
+Define a subclass of `uci-engine`, then provide engine identity and search
+hooks. `uci-go` should return `(values bestmove ponder)` where each move can be
+a Monsoon `move` struct or a UCI string like `"e2e4"`.
+
+```lisp
+(defclass my-engine (monsoon:uci-engine) ())
+
+(defmethod monsoon:uci-engine-name ((engine my-engine))
+  "My Engine")
+
+(defmethod monsoon:uci-engine-author ((engine my-engine))
+  "Your Name")
+
+(defun my-best-move (position params)
+  ;; Replace with your own search.
+  (declare (ignore params))
+  (first (monsoon:generate-moves position)))
+
+(defmethod monsoon:uci-go ((engine my-engine) params)
+  ;; Replace this with your existing search function.
+  (let ((best (my-best-move (monsoon:uci-engine-position engine) params)))
+    (values best nil)))
+
+;; Start the protocol loop.
+(monsoon:uci-run (make-instance 'my-engine))
+```
+
+### Wrapping an existing best-move function
+
+If you already have a function that picks a best move, just call it from
+`uci-go` and return the result. Use `uci-engine-position` for the current
+position and the parsed `go` settings via `params`.
+
+```lisp
+(defun pick-best-move (position)
+  ;; Your existing logic here, return a Monsoon move or a UCI move string.
+  (first (monsoon:generate-moves position)))
+
+(defmethod monsoon:uci-go ((engine my-engine) params)
+  (declare (ignore params))
+  (values (pick-best-move (monsoon:uci-engine-position engine)) nil))
+```
+
 ## Example usage
 
 ```lisp
