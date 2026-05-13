@@ -1,0 +1,370 @@
+;;;; UCI protocol support
+
+(in-package #:monsoon)
+
+(serapeum:defconst +uci-startpos-fen+
+  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+
+(defstruct (uci-option (:constructor make-uci-option
+                          (name type &key default min max vars)))
+  (name "" :type string)
+  (type :string :type keyword)
+  (default nil)
+  (min nil)
+  (max nil)
+  (vars nil))
+
+(defstruct (uci-go-parameters (:conc-name uci-go-))
+  searchmoves
+  ponder
+  wtime
+  btime
+  winc
+  binc
+  movestogo
+  depth
+  nodes
+  mate
+  movetime
+  infinite)
+
+(defclass uci-engine ()
+  ((position
+    :accessor uci-engine-position
+    :initform (position-from-fen +uci-startpos-fen+))
+   (option-values
+    :accessor uci-engine-option-values
+    :initform (make-hash-table :test #'equal))
+   (debug
+    :accessor uci-engine-debug
+    :initform nil)))
+
+(defgeneric uci-engine-name (engine))
+(defgeneric uci-engine-author (engine))
+(defgeneric uci-engine-options (engine))
+(defgeneric uci-new-game (engine))
+(defgeneric uci-set-option (engine name value))
+(defgeneric uci-position-updated (engine position))
+(defgeneric uci-go (engine parameters))
+(defgeneric uci-stop (engine))
+(defgeneric uci-ponderhit (engine))
+(defgeneric uci-ready (engine))
+(defgeneric uci-quit (engine))
+
+(defmethod uci-engine-name ((engine uci-engine))
+  "Monsoon")
+
+(defmethod uci-engine-author ((engine uci-engine))
+  "Unknown")
+
+(defmethod uci-engine-options ((engine uci-engine))
+  nil)
+
+(defmethod uci-new-game ((engine uci-engine))
+  nil)
+
+(defmethod uci-set-option ((engine uci-engine) name value)
+  (setf (gethash (string-downcase name) (uci-engine-option-values engine)) value)
+  value)
+
+(defmethod uci-position-updated ((engine uci-engine) position)
+  (declare (ignore position))
+  nil)
+
+(defmethod uci-go ((engine uci-engine) parameters)
+  (declare (ignore parameters))
+  (error "UCI search not implemented for ~a." (class-of engine)))
+
+(defmethod uci-stop ((engine uci-engine))
+  nil)
+
+(defmethod uci-ponderhit ((engine uci-engine))
+  nil)
+
+(defmethod uci-ready ((engine uci-engine))
+  nil)
+
+(defmethod uci-quit ((engine uci-engine))
+  nil)
+
+(defun uci-option-type-string (type)
+  (ecase type
+    (:check "check")
+    (:spin "spin")
+    (:combo "combo")
+    (:button "button")
+    (:string "string")))
+
+(defun uci-option-line (option)
+  (format nil "option name ~a type ~a~@[ default ~a~]~@[ min ~a~]~@[ max ~a~]~@[~{ var ~a~}~]"
+          (uci-option-name option)
+          (uci-option-type-string (uci-option-type option))
+          (uci-option-default option)
+          (uci-option-min option)
+          (uci-option-max option)
+          (uci-option-vars option)))
+
+(defun uci-square-string (square)
+  (declare (type square square))
+  (let ((file (file-of square))
+        (rank (rank-of square)))
+    (format nil "~c~c"
+            (code-char (+ (char-code #\a) file))
+            (code-char (+ (char-code #\1) rank)))))
+
+(defun uci-promotion-char (promotion)
+  (ecase promotion
+    (:queen #\q)
+    (:rook #\r)
+    (:bishop #\b)
+    (:knight #\n)))
+
+(defun uci-move-string (move)
+  (cond
+    ((null move) "0000")
+    ((stringp move) move)
+    ((typep move 'move)
+     (with-move (from to promotion flags) move
+       (declare (ignore flags))
+       (format nil "~a~a~@[~c~]"
+               (uci-square-string from)
+               (uci-square-string to)
+               (when promotion (uci-promotion-char promotion)))))
+    (t
+     (error "Unsupported move type: ~a" move))))
+
+(defun uci-parse-square (square-str)
+  (unless (= (length square-str) 2)
+    (error "Invalid square: ~a" square-str))
+  (let* ((file-char (char-downcase (char square-str 0)))
+         (rank-char (char square-str 1))
+         (file (- (char-code file-char) (char-code #\a)))
+         (rank (digit-char-p rank-char)))
+    (unless (and (<= 0 file 7)
+                 rank
+                 (<= 1 rank 8))
+      (error "Invalid square: ~a" square-str))
+    (+ (* (1- rank) 8) file)))
+
+(defun uci-promotion-piece (char)
+  (ecase (char-downcase char)
+    (#\q :queen)
+    (#\r :rook)
+    (#\b :bishop)
+    (#\n :knight)))
+
+(defun uci-lookup-move (position from to promotion)
+  (it:iter
+    (it:for move in (generate-moves position))
+    (when (and (eql from (move-from move))
+               (eql to (move-to move))
+               (eql promotion (move-promotion move))
+               (legal-move-p position move))
+      (it:return move))
+    (it:finally
+     (error "Illegal or unknown move: ~a~a~@[~c~]"
+            (uci-square-string from)
+            (uci-square-string to)
+            (when promotion (uci-promotion-char promotion))))))
+
+(defun uci-parse-move (position move-str)
+  (unless (and (stringp move-str)
+               (<= 4 (length move-str) 5))
+    (error "Invalid move: ~a" move-str))
+  (let* ((from (uci-parse-square (subseq move-str 0 2)))
+         (to (uci-parse-square (subseq move-str 2 4)))
+         (promotion (when (= (length move-str) 5)
+                      (uci-promotion-piece (char move-str 4)))))
+    (uci-lookup-move position from to promotion)))
+
+(defun uci-join-tokens (tokens)
+  (format nil "~{~a~^ ~}" tokens))
+
+(defun uci-parse-integer (token name)
+  (unless token
+    (error "Missing value for ~a." name))
+  (let ((value (parse-integer token :junk-allowed nil)))
+    (when (minusp value)
+      (error "Invalid value for ~a: ~a." name token))
+    value))
+
+(defun uci-parse-setoption (engine tokens)
+  (let ((cursor (rest tokens)))
+    (unless (and cursor (string= (string-downcase (first cursor)) "name"))
+      (error "Invalid setoption command."))
+    (setf cursor (rest cursor))
+    (let ((name-tokens '())
+          (value-tokens '()))
+      (loop while cursor
+            for token = (first cursor)
+            do (if (string= (string-downcase token) "value")
+                   (progn
+                     (setf cursor (rest cursor))
+                     (setf value-tokens cursor)
+                     (setf cursor nil))
+                   (progn
+                     (push token name-tokens)
+                     (setf cursor (rest cursor)))))
+      (let ((name (uci-join-tokens (nreverse name-tokens)))
+            (value (when value-tokens (uci-join-tokens value-tokens))))
+        (unless (plusp (length name))
+          (error "setoption requires a name."))
+        (uci-set-option engine name value)))))
+
+(defun uci-parse-position (engine tokens)
+  (let ((cursor (rest tokens)))
+    (unless cursor
+      (error "position requires arguments."))
+    (let ((pos nil))
+      (cond
+        ((string= (string-downcase (first cursor)) "startpos")
+         (setf pos (position-from-fen +uci-startpos-fen+))
+         (setf cursor (rest cursor)))
+        ((string= (string-downcase (first cursor)) "fen")
+         (setf cursor (rest cursor))
+         (when (< (length cursor) 6)
+           (error "position fen requires six fields."))
+         (let ((fen (uci-join-tokens (subseq cursor 0 6))))
+           (setf pos (position-from-fen fen))
+           (setf cursor (nthcdr 6 cursor))))
+        (t
+         (error "Unknown position specifier: ~a" (first cursor))))
+      (when cursor
+        (unless (string= (string-downcase (first cursor)) "moves")
+          (error "Unexpected token in position command: ~a" (first cursor)))
+        (setf cursor (rest cursor))
+        (dolist (move-str cursor)
+          (setf pos (do-move pos (uci-parse-move pos move-str)))))
+      (setf (uci-engine-position engine) pos)
+      (uci-position-updated engine pos)
+      pos)))
+
+(defun uci-parse-go (engine tokens)
+  (let* ((params (make-uci-go-parameters))
+         (cursor (rest tokens))
+         (keywords '("searchmoves" "ponder" "wtime" "btime" "winc" "binc"
+                     "movestogo" "depth" "nodes" "mate" "movetime" "infinite")))
+    (loop while cursor do
+      (let ((token (string-downcase (first cursor))))
+        (cond
+          ((string= token "searchmoves")
+           (setf cursor (rest cursor))
+           (let ((moves '()))
+             (loop while (and cursor
+                              (not (member (string-downcase (first cursor))
+                                           keywords
+                                           :test #'string=)))
+                   do (push (uci-parse-move (uci-engine-position engine)
+                                            (first cursor))
+                            moves)
+                      (setf cursor (rest cursor)))
+             (setf (uci-go-searchmoves params) (nreverse moves))))
+          ((string= token "ponder")
+           (setf (uci-go-ponder params) t)
+           (setf cursor (rest cursor)))
+          ((string= token "wtime")
+           (setf (uci-go-wtime params)
+                 (uci-parse-integer (second cursor) "wtime"))
+           (setf cursor (cddr cursor)))
+          ((string= token "btime")
+           (setf (uci-go-btime params)
+                 (uci-parse-integer (second cursor) "btime"))
+           (setf cursor (cddr cursor)))
+          ((string= token "winc")
+           (setf (uci-go-winc params)
+                 (uci-parse-integer (second cursor) "winc"))
+           (setf cursor (cddr cursor)))
+          ((string= token "binc")
+           (setf (uci-go-binc params)
+                 (uci-parse-integer (second cursor) "binc"))
+           (setf cursor (cddr cursor)))
+          ((string= token "movestogo")
+           (setf (uci-go-movestogo params)
+                 (uci-parse-integer (second cursor) "movestogo"))
+           (setf cursor (cddr cursor)))
+          ((string= token "depth")
+           (setf (uci-go-depth params)
+                 (uci-parse-integer (second cursor) "depth"))
+           (setf cursor (cddr cursor)))
+          ((string= token "nodes")
+           (setf (uci-go-nodes params)
+                 (uci-parse-integer (second cursor) "nodes"))
+           (setf cursor (cddr cursor)))
+          ((string= token "mate")
+           (setf (uci-go-mate params)
+                 (uci-parse-integer (second cursor) "mate"))
+           (setf cursor (cddr cursor)))
+          ((string= token "movetime")
+           (setf (uci-go-movetime params)
+                 (uci-parse-integer (second cursor) "movetime"))
+           (setf cursor (cddr cursor)))
+          ((string= token "infinite")
+           (setf (uci-go-infinite params) t)
+           (setf cursor (rest cursor)))
+          (t
+           (error "Unknown go parameter: ~a" token)))))
+    params))
+
+(defun uci-write-line (stream line)
+  (format stream "~a~%" line)
+  (finish-output stream))
+
+(defun uci-send-id (engine stream)
+  (uci-write-line stream
+                  (format nil "id name ~a" (uci-engine-name engine)))
+  (uci-write-line stream
+                  (format nil "id author ~a" (uci-engine-author engine)))
+  (dolist (option (uci-engine-options engine))
+    (uci-write-line stream (uci-option-line option))))
+
+(defun uci-send-bestmove (stream bestmove &optional ponder)
+  (let ((bestmove-string (uci-move-string bestmove)))
+    (if ponder
+        (uci-write-line stream
+                        (format nil "bestmove ~a ponder ~a"
+                                bestmove-string
+                                (uci-move-string ponder)))
+        (uci-write-line stream
+                        (format nil "bestmove ~a" bestmove-string)))))
+
+(defun uci-handle-line (engine line &key (output *standard-output*))
+  (let ((tokens (serapeum:tokens line)))
+    (when tokens
+      (let ((command (string-downcase (first tokens))))
+        (cond
+          ((string= command "uci")
+           (uci-send-id engine output)
+           (uci-write-line output "uciok"))
+          ((string= command "isready")
+           (uci-ready engine)
+           (uci-write-line output "readyok"))
+          ((string= command "ucinewgame")
+           (uci-new-game engine))
+          ((string= command "setoption")
+           (uci-parse-setoption engine tokens))
+          ((string= command "position")
+           (uci-parse-position engine tokens))
+          ((string= command "go")
+           (let ((params (uci-parse-go engine tokens)))
+             (multiple-value-bind (bestmove ponder)
+                 (uci-go engine params)
+               (uci-send-bestmove output bestmove ponder))))
+          ((string= command "stop")
+           (uci-stop engine))
+          ((string= command "ponderhit")
+           (uci-ponderhit engine))
+          ((string= command "debug")
+           (when (second tokens)
+             (setf (uci-engine-debug engine)
+                   (string= (string-downcase (second tokens)) "on"))))
+          ((string= command "quit")
+           (uci-quit engine)
+           :quit)
+          (t
+           (error "Unknown UCI command: ~a" command)))))))
+
+(defun uci-run (engine &key (input *standard-input*) (output *standard-output*))
+  (loop for line = (read-line input nil nil)
+        while line
+        when (eq (uci-handle-line engine line :output output) :quit)
+          do (return :quit)))

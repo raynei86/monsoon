@@ -63,6 +63,22 @@ seen in `src/types.lisp`.
 
 - `position-from-fen` — constructs a `position` from a FEN string.
 
+## UCI protocol
+
+- `uci-engine` — base class for UCI-capable engines. Override
+  `uci-engine-name`, `uci-engine-author`, and `uci-go` at minimum.
+- `+uci-startpos-fen+` — FEN string for the standard starting position.
+- `uci-run` — read/evaluate UCI commands from an input stream and emit
+  responses to an output stream.
+- `uci-handle-line` — parse a single UCI command line and dispatch it
+  to the appropriate engine hooks.
+- `uci-go-parameters` — struct holding parsed `go` command settings,
+  accessible via `uci-go-depth`, `uci-go-wtime`, `uci-go-searchmoves`, etc.
+- `uci-option` — struct describing an engine option. Provide a list of
+  these via `uci-engine-options`.
+- `uci-parse-move` — parse and validate a UCI move string in a given position.
+- `uci-move-string` — format a move (or `NIL`) into a UCI move string.
+
 ## Example usage
 
 ```lisp
