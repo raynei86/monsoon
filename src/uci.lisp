@@ -39,17 +39,67 @@
     :accessor uci-engine-debug
     :initform nil)))
 
-(defgeneric uci-engine-name (engine))
-(defgeneric uci-engine-author (engine))
-(defgeneric uci-engine-options (engine))
-(defgeneric uci-new-game (engine))
-(defgeneric uci-set-option (engine name value))
-(defgeneric uci-position-updated (engine position))
-(defgeneric uci-go (engine parameters))
-(defgeneric uci-stop (engine))
-(defgeneric uci-ponderhit (engine))
-(defgeneric uci-ready (engine))
-(defgeneric uci-quit (engine))
+(defgeneric uci-engine-name (engine)
+  (:documentation "Return the engine name string sent in the UCI 'id name' response.
+Subclasses should override this to return their own engine name."))
+
+(defgeneric uci-engine-author (engine)
+  (:documentation "Return the author name string sent in the UCI 'id author' response.
+Subclasses should override this to return their own author name."))
+
+(defgeneric uci-engine-options (engine)
+  (:documentation "Return a list of UCI-OPTION structs describing the options this engine
+supports. These are sent to the GUI after the 'id' lines in response to the 'uci' command.
+The default implementation returns NIL (no options). Subclasses should override this to
+advertise their own options."))
+
+(defgeneric uci-new-game (engine)
+  (:documentation "Called when the GUI sends 'ucinewgame', indicating that a new game is
+starting. Engines should reset any game-specific state here (e.g. transposition tables,
+hash history). The default implementation does nothing."))
+
+(defgeneric uci-set-option (engine name value)
+  (:documentation "Called when the GUI sends 'setoption name NAME value VALUE'. NAME is the
+option name as a string (stored with downcased key); VALUE is the new value as a string, or
+NIL if no value was provided. The default implementation stores the value in the engine's
+option-values hash table keyed by the downcased name. Use UCI-GET-OPTION to retrieve stored
+values."))
+
+(defgeneric uci-position-updated (engine position)
+  (:documentation "Called after the internal position has been updated by a 'position' command.
+POSITION is the new POSITION object (same object already stored in the engine's
+UCI-ENGINE-POSITION slot). This hook allows subclasses to react to position changes (e.g.
+update incremental evaluators). The default implementation does nothing."))
+
+(defgeneric uci-go (engine parameters)
+  (:documentation "Called when the GUI sends a 'go' command. PARAMETERS is a UCI-GO-PARAMETERS
+struct whose slots hold the search constraints (depth, movetime, wtime/btime, etc.). The method
+must return two values: (1) the best move (a MOVE object, a UCI move string, or NIL to send
+'bestmove 0000'), and (2) an optional ponder move or NIL. Subclasses must override this; the
+default method signals an error."))
+
+(defgeneric uci-stop (engine)
+  (:documentation "Called when the GUI sends 'stop', requesting that the engine stop searching
+as soon as possible and send a 'bestmove' response. Because UCI-GO is currently called
+synchronously, this hook is invoked only after UCI-GO has already returned. Subclasses that
+launch a background search thread should set a flag here to terminate the search. The default
+implementation does nothing."))
+
+(defgeneric uci-ponderhit (engine)
+  (:documentation "Called when the GUI sends 'ponderhit', indicating that the position being
+pondered has actually occurred on the board. The engine should switch from pondering mode to
+normal timed search. Because UCI-GO is currently called synchronously, this hook is invoked
+only after UCI-GO has already returned. The default implementation does nothing."))
+
+(defgeneric uci-ready (engine)
+  (:documentation "Called just before 'readyok' is sent in response to an 'isready' command.
+Engines can use this hook to perform any deferred initialization that should be complete before
+the GUI considers the engine ready. The default implementation does nothing."))
+
+(defgeneric uci-quit (engine)
+  (:documentation "Called when the GUI sends 'quit', instructing the engine to exit as soon as
+possible. UCI-RUN will stop reading input after this returns. Subclasses should release
+resources and terminate any background threads here. The default implementation does nothing."))
 
 (defmethod uci-engine-name ((engine uci-engine))
   "Monsoon")
