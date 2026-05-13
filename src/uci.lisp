@@ -211,7 +211,7 @@ resources and terminate any background threads here. The default implementation 
                (eql to (move-to move))
                (eql promotion (move-promotion move))
                (legal-move-p position move))
-      (it:return move))
+      (it:leave move))
     (it:finally
      (error "Illegal or unknown move: ~a~a~@[~c~]"
             (uci-square-string from)
@@ -404,7 +404,7 @@ resources and terminate any background threads here. The default implementation 
            (uci-quit engine)
            :quit)
           (t
-           nil)))))))
+           nil))))))
 
 (defun uci-run (engine &key (input *standard-input*) (output *standard-output*))
   (loop for line = (read-line input nil nil)
