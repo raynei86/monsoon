@@ -80,6 +80,46 @@ seen in `src/types.lisp`.
 - `uci-parse-move` — parse and validate a UCI move string in a given position.
 - `uci-move-string` — format a move (or `NIL`) into a UCI move string.
 
+### UCI quickstart
+
+Define a subclass of `uci-engine`, then provide engine identity and search
+hooks. `uci-go` should return `(values bestmove ponder)` where each move can be
+a Monsoon `move` struct or a UCI string like `"e2e4"`.
+
+```lisp
+(defclass my-engine (monsoon:uci-engine) ())
+
+(defmethod monsoon:uci-engine-name ((engine my-engine))
+  "My Engine")
+
+(defmethod monsoon:uci-engine-author ((engine my-engine))
+  "Your Name")
+
+(defmethod monsoon:uci-go ((engine my-engine) params)
+  ;; Replace this with your existing search function.
+  (let ((best (my-best-move (monsoon:uci-engine-position engine) params)))
+    (values best nil)))
+
+;; Start the protocol loop.
+(monsoon:uci-run (make-instance 'my-engine))
+```
+
+### Wrapping an existing best-move function
+
+If you already have a function that picks a best move, just call it from
+`uci-go` and return the result. Use `uci-engine-position` for the current
+position and the parsed `go` settings via `params`.
+
+```lisp
+(defun pick-best-move (position)
+  ;; Your existing logic here, return a Monsoon move or a UCI move string.
+  (first (monsoon:generate-moves position)))
+
+(defmethod monsoon:uci-go ((engine my-engine) params)
+  (declare (ignore params))
+  (values (pick-best-move (monsoon:uci-engine-position engine)) nil))
+```
+
 ## Example usage
 
 ```lisp
