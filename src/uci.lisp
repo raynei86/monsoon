@@ -369,7 +369,7 @@
            (uci-quit engine)
            :quit)
           (t
-           (error "Unknown UCI command: ~a" command)))))))
+           nil)))))))
 
 (defun uci-run (engine &key (input *standard-input*) (output *standard-output*))
   (loop for line = (read-line input nil nil)
