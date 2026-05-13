@@ -73,7 +73,8 @@ seen in `src/types.lisp`.
 - `uci-handle-line` — parse a single UCI command line and dispatch it
   to the appropriate engine hooks.
 - `uci-go-parameters` — struct holding parsed `go` command settings,
-  accessible via `uci-go-depth`, `uci-go-wtime`, `uci-go-searchmoves`, etc.
+  accessible via `uci-go-param-depth`, `uci-go-param-wtime`,
+  `uci-go-param-searchmoves`, etc.
 - `uci-option` — struct describing an engine option. Provide a list of
   these via `uci-engine-options`.
 - `uci-parse-move` — parse and validate a UCI move string in a given position.

@@ -68,18 +68,18 @@
    #:uci-option-vars
    #:uci-go-parameters
    #:make-uci-go-parameters
-   #:uci-go-searchmoves
-   #:uci-go-ponder
-   #:uci-go-wtime
-   #:uci-go-btime
-   #:uci-go-winc
-   #:uci-go-binc
-   #:uci-go-movestogo
-   #:uci-go-depth
-   #:uci-go-nodes
-   #:uci-go-mate
-   #:uci-go-movetime
-   #:uci-go-infinite
+   #:uci-go-param-searchmoves
+   #:uci-go-param-ponder
+   #:uci-go-param-wtime
+   #:uci-go-param-btime
+   #:uci-go-param-winc
+   #:uci-go-param-binc
+   #:uci-go-param-movestogo
+   #:uci-go-param-depth
+   #:uci-go-param-nodes
+   #:uci-go-param-mate
+   #:uci-go-param-movetime
+   #:uci-go-param-infinite
    #:uci-parse-move
    #:uci-move-string
    ))
