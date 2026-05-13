@@ -374,5 +374,10 @@
 (defun uci-run (engine &key (input *standard-input*) (output *standard-output*))
   (loop for line = (read-line input nil nil)
         while line
-        when (eq (uci-handle-line engine line :output output) :quit)
-          do (return :quit)))
+        do (handler-case
+               (when (eq (uci-handle-line engine line :output output) :quit)
+                 (return :quit))
+             (error (condition)
+               (uci-write-line output
+                               (format nil "info string UCI error: ~a"
+                                       condition))))))
