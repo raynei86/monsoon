@@ -2,9 +2,7 @@
   (:use :cl
         :monsoon
         :rove)
-  (:shadow cl:position)) ;; Don't do this in actual code! This is only
-			 ;; because I am (:use :monsoon), which you
-			 ;; shouldn't do in an actual codebase anyways
+  (:shadow cl:position)) ;; Avoid :use :monsoon in real code; kept for tests.
 (in-package :monsoon/tests/main)
 
 ;; NOTE: To run this test file, execute `(asdf:test-system :monsoon)' in your Lisp.
