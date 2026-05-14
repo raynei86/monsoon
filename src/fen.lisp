@@ -1,14 +1,15 @@
-;; FEN related stuff, not sure if it deserves its own file yet but it
-;; will for now.
+;; FEN parsing helpers.
 
 (in-package #:monsoon)
 
 (defun fen-char->piece (ch)
+  "Return the piece keyword represented by CH."
   (ecase (char-downcase ch)
     (#\p :pawn) (#\n :knight) (#\b :bishop)
     (#\r :rook) (#\q :queen)  (#\k :king)))
 
 (defun fen-char->color (ch)
+  "Return the piece color represented by CH."
   (if (upper-case-p ch) :white :black))
 
 (defmacro with-fen-fields ((placement side castling ep halfmove fullmove) fen &body body)
@@ -18,6 +19,7 @@
      ,@body))
 
 (defun parse-placement! (pos placement-str)
+  "Populate POS with pieces from PLACEMENT-STR."
   (it:iter
     (it:with rank = 7)   ; FEN starts from rank 8 (index 7) and descends
     (it:with file = 0)
@@ -32,9 +34,11 @@
        (incf file)))))
 
 (defun parse-side (side-str)
+  "Parse SIDE-STR into :white or :black."
   (if (string= side-str "w") :white :black))
 
 (defun parse-castling (castling-str)
+  "Parse CASTLING-STR into castling rights."
   (it:iter
     (it:for ch in-sequence castling-str)
     (it:sum (case ch
@@ -43,6 +47,7 @@
               (t 0)))))
 
 (defun parse-ep-square (ep-str)
+  "Parse EP-STR into a square or NIL."
   (unless (string= ep-str "-")
     ;; `sq` only takes keywords, so need a small hack here
     (sq (intern (string-upcase ep-str) :keyword))))

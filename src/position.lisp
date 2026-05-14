@@ -34,6 +34,7 @@
   (hash         0   :type hash-key))  ; Zobrist hash not implemented yet, keep it for now
 
 (defun occupied-p (position square)
+  "Return true if SQUARE is occupied in POSITION."
   (declare (type square square))
   (logbitp square (pos-occupied-squares position)))
 
@@ -58,7 +59,7 @@
                   such-that (logtest bit (aref (pos-by-piece position) piece-index))))))
 
 (defun occupant-at (position square)
-  "Returns the colored piece at that square as an `color-pieced-code`"
+  "Return the piece and color at SQUARE, or NIL values if empty."
   (if (occupied-p position square)
       (values (piece-at  position square)
               (color-at position square))
@@ -72,6 +73,7 @@
      ,@body))
 
 (defun opponent (color)
+  "Return the opposing color."
   (declare (type color color))
   (if (eq color :white) :black :white))
 
@@ -115,6 +117,7 @@
        ,@body)))
 
 (defun copy-position (pos)
+  "Return a copy of POS with duplicated arrays."
   (make-position
     :boards           (copy-seq (pos-boards pos))
     :by-color         (copy-seq (pos-by-color pos))

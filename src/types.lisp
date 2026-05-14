@@ -58,10 +58,12 @@
 (deftype rank () '(integer 0 7))
 
 (defun file-of (square)
+  "Return the file index for SQUARE."
   (declare (type square square))
   (mod square 8))
 
 (defun rank-of (square)
+  "Return the rank index for SQUARE."
   (declare (type square square))
   (values (floor square 8)))
 
@@ -98,6 +100,7 @@
   (+ (* (piece-index piece) 2) (color-index color)))
 
 (defun decompose-colored-piece-index (index)
+  "Return the piece index and color index from INDEX."
   (declare (type colored-piece-code index))
   (let* ((color (logand index 1))
 	 (piece (ash index -1)))

@@ -27,14 +27,15 @@
 (serapeum:defconst +move-flag-queenside+ #b10000)
 
 (defun emit-moves (from targets-bb &optional (flags 0))
+  "Return moves from FROM to each target in TARGETS-BB."
   (declare (type square from)
 	   (type bitboard targets-bb))
-  "Returns a list of moves from `from` to each target in `targets-bb`"
   (it:iter
     (for target in-bitboard targets-bb)
     (it:collect (make-move from target nil flags))))
 
 ;; Attack tables
+;; Precompute king and knight attacks for every square.
 (defmacro direction-to-offset (direction)
   `(case ,direction
     (:n 8)   (:s -8)  (:e 1)   (:w -1)
@@ -138,11 +139,7 @@
   "Attacks along a negative ray from square, cut off at first obstacle"
   (ray-attacks square direction occupied msb))
 
-;; Defined as macros because of the anaphoric nature you see below. I
-;; need to reference a `from` square that is simply not existent in
-;; `generate-slider-moves`, but is present in
-;; `generate-moves-for-sliders`. Defining them as macros opens them up
-;; to that necessary context.
+;; Slider attack macros are anaphoric; FROM is bound by generate-major-piece-moves.
 (defmacro rook-attack-mask (square occupied)
   `(logior (ray-attacks+ ,square :n ,occupied)
           (ray-attacks+ ,square :e ,occupied)
@@ -169,8 +166,8 @@
        (it:appending (emit-moves from captures +move-flag-capture+))
        (it:appending (emit-moves from quiets)))))
 
-;; Oh my, this is amazingly concise
 (defun generate-knight-moves (position)
+  "Generate pseudo-legal knight moves for the side to move."
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
      (aref (pos-boards position) (colored-piece-index :knight side))
@@ -178,6 +175,7 @@
      friendly enemy)))
 
 (defun generate-king-moves (position)
+  "Generate pseudo-legal king moves for the side to move."
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
      (aref (pos-boards position) (colored-piece-index :king side))
@@ -185,6 +183,7 @@
      friendly enemy)))
 
 (defun generate-rook-moves (position)
+  "Generate pseudo-legal rook moves for the side to move."
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
      (aref (pos-boards position) (colored-piece-index :rook side))
@@ -192,6 +191,7 @@
      friendly enemy)))
 
 (defun generate-bishop-moves (position)
+  "Generate pseudo-legal bishop moves for the side to move."
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
      (aref (pos-boards position) (colored-piece-index :bishop side))
@@ -199,6 +199,7 @@
      friendly enemy)))
 
 (defun generate-queen-moves (position)
+  "Generate pseudo-legal queen moves for the side to move."
   (with-position (side occupied friendly enemy) position
     (generate-major-piece-moves
      (aref (pos-boards position) (colored-piece-index :queen side))
@@ -237,16 +238,9 @@
 	(it:collect (make-move (- target ,shift) target promo ,flags))))))
 
 (defun generate-pawn-moves (position)
-  ;; A lot to unpack here. So push1 checks if moving forward is valid
-  ;; by pushing the `pawns` bitboard forward and ANDing it with the
-  ;; bitboard representing empty space, essentially only allowing only
-  ;; empty squares to be in front.
-
-  ;; push2 checks if push1 landed on the rank in front of the
-  ;; start-rank, then shifts only those moves forward again once more.
-
-  ;; cap-e and cap-w mask out any pawns on h or a, as if they capture
-  ;; to east or west (depending on their location), they will fly off the board.
+  "Generate pseudo-legal pawn moves for the side to move."
+  ;; Pawn moves use shifted masks for pushes and captures.
+  ;; push1/push2 are quiet advances; cap-e/cap-w are capture masks.
   (with-position (side occupied friendly enemy) position
     (with-pawn-params side
       (let* ((pawns (aref (pos-boards position) (colored-piece-index :pawn side)))
@@ -281,7 +275,7 @@
          (emit-pawn-promos cap-e-promo cap-e-shift +move-flag-capture+)
          (emit-pawn-promos cap-w-promo cap-w-shift +move-flag-capture+)
 
-	 ;; En passant — same logic as captures, but targeting the ep square alone
+	 ;; En passant uses capture logic against the ep square.
          (when (pos-ep-square position)
            (let* ((ep-bb    (ash 1 (pos-ep-square position)))
                   (ep-cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) ep-bb))
@@ -309,6 +303,7 @@
      ,@body))
 
 (defun generate-castling-moves (position)
+  "Generate pseudo-legal castling moves for the side to move."
   (with-position (side occupied friendly enemy) position
     (with-castling-params side
       (let ((rights (pos-castling position))
@@ -323,6 +318,7 @@
 
 ;; Final stages, move legality and actually making the moves
 (defun do-move (position move)
+  "Apply MOVE to POSITION and return the resulting position."
   (let* ((new-pos (copy-position position))
          (side    (pos-side-to-move new-pos))
          (opp     (opponent side))
@@ -402,6 +398,7 @@
           (generate-castling-moves position)))
 
 (defun king-in-check-p (pos color)
+  "Return true if COLOR's king is in check in POS."
   (let* ((king-bb  (aref (pos-boards pos) (colored-piece-index :king color)))
          (king-sq  (lsb king-bb))
          (opp      (opponent color))
@@ -414,10 +411,9 @@
          (opp-king    (aref (pos-boards pos) (colored-piece-index :king   opp)))
          (diag-sliders (logior opp-bishops opp-queens))
          (orth-sliders (logior opp-rooks   opp-queens))
-         ;; Pawn attack direction depends on the color of the king being checked,
-         ;; not the attacking pawn — we cast attacks *from* the king square outward.
-         (pawn-cap-e (if (eq color :white) 9 -7))
-         (pawn-cap-w (if (eq color :white) 7 -9)))
+          ;; Pawn attacks are cast from the king square toward enemy pawns.
+          (pawn-cap-e (if (eq color :white) 9 -7))
+          (pawn-cap-w (if (eq color :white) 7 -9)))
     (or
       ;; Pawn attacks: check whether an opponent pawn sits where our king
       ;; could capture if it were a pawn itself.
@@ -429,14 +425,16 @@
       (logtest (bishop-attack-mask king-sq occupied) diag-sliders)
       ;; Orthogonal sliders (rook + queen)
       (logtest (rook-attack-mask king-sq occupied) orth-sliders)
-      ;; King adjacency — needed to prevent kings from walking next to each other
+      ;; King adjacency - prevent kings from moving next to each other.
       (logtest (aref +king-attacks+ king-sq) opp-king))))
 
 (defun legal-move-p (pos move)
+  "Return true if MOVE is legal in POS."
   (let ((new-pos (do-move pos move)))
     (not (king-in-check-p new-pos (pos-side-to-move pos)))))
 
 (defun perft (pos depth)
+  "Count leaf nodes by enumerating legal moves to DEPTH."
   (if (zerop depth)
       1
       (it:iter

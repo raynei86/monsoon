@@ -6,10 +6,12 @@
 
 ;; Bits related utils
 (defun lsb (bb)
+  "Return the index of the least significant set bit in BB."
   (declare (type bitboard bb))
   (1- (integer-length (logand bb (- bb)))))
 
 (defun msb (bb)
+  "Return the index of the most significant set bit in BB."
   (declare (type bitboard bb))
   (1- (integer-length bb)))
 
