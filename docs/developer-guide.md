@@ -35,16 +35,37 @@ Move generation produces *pseudo-legal* moves and then filters with
 
 ### Precomputed attack tables
 
-- King and knight moves are precomputed for every square into bitboard tables.
-- Sliding piece attacks use precomputed ray tables for each direction.
-  `ray-attacks+` and `ray-attacks-` cut rays at the first blocker to
-  produce rook/bishop/queen attacks.
+- `direction-to-offset` and `offsets` map compass directions to square deltas.
+- `generate-attack-table` builds a 64-entry table by scanning each square and
+  summing valid target bits for the provided directions and edge checks.
+- `+king-attacks+` and `+knight-attacks+` are the resulting tables for jumping
+  pieces, indexed by source square.
+- Jumping piece move generation uses `generate-major-piece-moves` with
+  `aref +knight-attacks+ from` or `aref +king-attacks+ from` to get attack
+  masks, then splits captures and quiet moves by friendly/enemy masks.
+
+### Rays and sliding pieces
+
+- `generate-ray-table` builds rays for one direction, ignoring blockers.
+  `+rays+` stores eight direction tables, and `ray` indexes into them.
+- `ray-attacks` intersects a ray with occupied squares, then trims the ray at
+  the first blocker using `lsb` or `msb` and `logxor`.
+- `rook-attack-mask`, `bishop-attack-mask`, and `queen-attack-mask` are macros
+  so they can use the anaphoric `from` bound by `generate-major-piece-moves`.
+- Sliding piece move generation calls `generate-major-piece-moves` with the
+  appropriate attack mask macro and relies on the same capture/quiet split.
 
 ### Pawns
 
-Pawn move generation derives pushes and captures from shift operations.
-Promotion and en passant moves are emitted by splitting target bitboards by
-promotion rank and by masking the en passant square.
+- `with-pawn-params` binds push/capture shifts and ranks per side.
+- `push1` and `push2` are quiet advances built by shifting the pawn bitboard and
+  intersecting with empty squares.
+- `cap-e` and `cap-w` shift only pawns not on the edge files, then intersect
+  with enemy occupancy.
+- Promotion targets are split from normal targets by the promotion rank and
+  emitted with `emit-pawn-promos`.
+- En passant uses the same capture shifts against a single ep-square bitboard
+  and adds the en passant flag.
 
 ### Castling
 
