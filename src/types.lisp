@@ -103,7 +103,7 @@
   "Return the piece index and color index from INDEX."
   (declare (type colored-piece-code index))
   (let* ((color (logand index 1))
-	 (piece (ash index -1)))
+         (piece (ash index -1)))
     (values piece color)))
 (defmacro with-colored-piece-index ((piece color) index &body body)
   `(multiple-value-bind (,piece ,color)

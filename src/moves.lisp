@@ -29,7 +29,7 @@
 (defun emit-moves (from targets-bb &optional (flags 0))
   "Return moves from FROM to each target in TARGETS-BB."
   (declare (type square from)
-	   (type bitboard targets-bb))
+           (type bitboard targets-bb))
   (it:iter
     (for target in-bitboard targets-bb)
     (it:collect (make-move from target nil flags))))
@@ -275,7 +275,7 @@
          (emit-pawn-promos cap-e-promo cap-e-shift +move-flag-capture+)
          (emit-pawn-promos cap-w-promo cap-w-shift +move-flag-capture+)
 
-	 ;; En passant uses capture logic against the ep square.
+         ;; En passant uses capture logic against the ep square.
          (when (pos-ep-square position)
            (let* ((ep-bb    (ash 1 (pos-ep-square position)))
                   (ep-cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) ep-bb))
@@ -411,9 +411,9 @@
          (opp-king    (aref (pos-boards pos) (colored-piece-index :king   opp)))
          (diag-sliders (logior opp-bishops opp-queens))
          (orth-sliders (logior opp-rooks   opp-queens))
-          ;; Pawn attacks are cast from the king square toward enemy pawns.
-          (pawn-cap-e (if (eq color :white) 9 -7))
-          (pawn-cap-w (if (eq color :white) 7 -9)))
+         ;; Pawn attacks are cast from the king square toward enemy pawns.
+         (pawn-cap-e (if (eq color :white) 9 -7))
+         (pawn-cap-w (if (eq color :white) 7 -9)))
     (or
       ;; Pawn attacks: check whether an opponent pawn sits where our king
       ;; could capture if it were a pawn itself.
