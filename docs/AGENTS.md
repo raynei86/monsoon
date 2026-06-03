@@ -64,7 +64,6 @@ The `position` struct is the central data type. It carries three redundant-but-c
 
 - `pos-boards` — 12-element array, indexed by `colored-piece-index`.
 - `pos-by-color` — 2-element array, aggregate occupancy per color.
-- `pos-by-piece` — 6-element array, aggregate occupancy per piece kind.
 - `pos-occupied-squares` — union of the two color boards.
 
 **All board mutations go through `place-piece!` and `remove-piece!`**, which keep all four views in sync. Never touch individual array slots directly outside these two functions. Both are declared `inline`.

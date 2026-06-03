@@ -34,7 +34,6 @@ seen in `src/types.lisp`.
   `side`, `occupied`, `friendly`, `enemy`.
 - `pos-boards` — bitboards for each colored piece (12 entries).
 - `pos-by-color` — bitboards for each color (2 entries).
-- `pos-by-piece` — bitboards for each piece kind (6 entries).
 - `pos-occupied-squares` — bitboard for all occupied squares
 - `pos-side-to-move` — `:white` or `:black`.
 - `pos-castling` — castling rights bitmask.

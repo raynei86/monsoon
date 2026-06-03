@@ -35,6 +35,11 @@ All fundamental types are defined as `deftype` aliases over CL integer types, ke
 | `piece` | `(member :pawn … :king)` | Piece kind |
 | `colored-piece-code` | `(unsigned-byte 4)` | Combined piece+color index |
 
+- 12 colored-piece bitboards (`pos-boards`): one per piece kind and color.
+- 2 color bitboards (`pos-by-color`): aggregate by color.
+- An occupancy bitboard that is always kept in sync.
+- Side to move, castling rights, en passant square, and clocks.
+
 The `sq` macro converts symbolic square names (`:e4`, `:h1`, etc.) to their integer index **at compile time**, making it safe to use inside `serapeum:defconst` and other load-time forms without runtime cost. It cannot accept a runtime value.
 
 `colored-piece-index` maps a `(piece, color)` pair to an integer in `[0, 11]` by interleaving colors: white pawn → 0, black pawn → 1, white knight → 2, and so on up to black king → 11. This index is the key into every `pos-boards` array slot. `color-index` and `piece-index` compute the components separately when needed.

@@ -18,10 +18,6 @@
    (make-array 2 :element-type 'bitboard :initial-element 0)
    :type (simple-array bitboard (2)))
 
-  (by-piece	; Same idea as the color boards but for pieces instead
-   (make-array 6 :element-type 'bitboard :initial-element 0)
-   :type (simple-array bitboard (6)))
-  
   (occupied-squares		  ; Union of the two colored bitboards
    0
    :type bitboard)
@@ -50,13 +46,15 @@
 (defun piece-at (position square)
   (declare (type square square))
   "Returns the piece type on `square`. Assumes the square is occupied."
-  (let ((bit (ash 1 square)))
-    (it:iter
-      (it:for piece-index from 0 below 6)
-      (it:finding (ecase piece-index
-                    (0 :pawn) (1 :knight) (2 :bishop)
-                    (3 :rook) (4 :queen)  (5 :king))
-                  such-that (logtest bit (aref (pos-by-piece position) piece-index))))))
+   (let* ((color (color-at position square))
+         (boards (pos-boards position)))
+    (cond
+      ((logbitp square (aref boards (colored-piece-index :pawn   color))) :pawn)
+      ((logbitp square (aref boards (colored-piece-index :knight color))) :knight)
+      ((logbitp square (aref boards (colored-piece-index :bishop color))) :bishop)
+      ((logbitp square (aref boards (colored-piece-index :rook   color))) :rook)
+      ((logbitp square (aref boards (colored-piece-index :queen  color))) :queen)
+      ((logbitp square (aref boards (colored-piece-index :king   color))) :king))))
 
 (defun occupant-at (position square)
   "Return the piece and color at SQUARE, or NIL values if empty."
@@ -84,7 +82,6 @@
     (let ((mask (ash 1 square)))
       (setf (aref (pos-boards position) colored-piece-code) (logior (aref (pos-boards position) colored-piece-code) mask)
             (aref (pos-by-color position) color)           (logior (aref (pos-by-color position) color) mask)
-            (aref (pos-by-piece position) piece)           (logior (aref (pos-by-piece position) piece) mask)
             ;; Update the occupancy bitboard (combined White + Black)
             (pos-occupied-squares position)                        (logior (pos-occupied-squares position) mask))))
   position)
@@ -96,7 +93,6 @@
     (let ((mask (ash 1 square)))
       (setf (aref (pos-boards position) colored-piece-code) (logandc2 (aref (pos-boards position) colored-piece-code) mask)
             (aref (pos-by-color position) color)           (logandc2 (aref (pos-by-color position) color) mask)
-            (aref (pos-by-piece position) piece)           (logandc2 (aref (pos-by-piece position) piece) mask)
             ;; Update the occupancy bitboard (combined White + Black)
             (pos-occupied-squares position)                        (logandc2 (pos-occupied-squares position) mask))))
   position)
@@ -121,7 +117,6 @@
   (make-position
     :boards           (copy-seq (pos-boards pos))
     :by-color         (copy-seq (pos-by-color pos))
-    :by-piece         (copy-seq (pos-by-piece pos))
     :occupied-squares (pos-occupied-squares pos)
     :side-to-move     (pos-side-to-move pos)
     :castling         (pos-castling pos)
