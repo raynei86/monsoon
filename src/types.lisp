@@ -69,29 +69,26 @@
 
 
 ;; Pieces and color
+(serapeum:defconst +white+ 0)
+(serapeum:defconst +black+ 1)
 (deftype color ()
-  "Either :white or :black, use as you see fit."
-  '(member :white :black))
+  'bit)
 
-(deftype piece ()
-  "One of the six kinds of chess pieces."
-  '(member :pawn :knight :bishop :rook :queen :king))
+(serapeum:defconst +pawn+   0)
+(serapeum:defconst +knight+ 1)
+(serapeum:defconst +bishop+ 2)
+(serapeum:defconst +rook+   3)
+(serapeum:defconst +queen+  4)
+(serapeum:defconst +king+   5)
+(deftype piece () '(integer 0 5))
 
 (deftype colored-piece-code ()
   "An integer representing a piece and its color"
   '(unsigned-byte 4))
 
-(defun color-index (color)
-  "Returns 0 for white, 1 for black"
-  (declare (type color color))
-  (if (eq color :white) 0 1))
-
 (defun piece-index (piece)
   "Returns an integer [0, 5] representing the piece."
-  (declare (type piece piece))
-  (ecase piece
-    (:pawn 0) (:knight 1) (:bishop 2)
-    (:rook 3) (:queen 4) (:king 5)))
+  piece)
 
 (defun colored-piece-index (piece color)
   "Returns an integer [0, 11] representing a colored piece."
@@ -105,6 +102,7 @@
   (let* ((color (logand index 1))
          (piece (ash index -1)))
     (values piece color)))
+
 (defmacro with-colored-piece-index ((piece color) index &body body)
   `(multiple-value-bind (,piece ,color)
        (decompose-colored-piece-index ,index)
