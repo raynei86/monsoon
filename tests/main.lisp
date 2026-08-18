@@ -7,19 +7,19 @@
 
 ;; NOTE: To run this test file, execute `(asdf:test-system :monsoon)' in your Lisp.
 
-(defparameter +starting-position-fen+
+(defparameter *starting-position-fen*
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
-(defparameter +lone-knight-fen+
+(defparameter *lone-knight-fen*
   "4k3/8/8/3N4/8/8/8/4K3 w - - 0 1")
 
-(defparameter +pawn-capture-fen+
+(defparameter *pawn-capture-fen*
   "4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1")
 
-(defparameter +check-fen+
+(defparameter *check-fen*
   "4k3/8/8/8/8/8/4R3/4K3 b - - 0 1")
 
-(defparameter +promotion-fen+
+(defparameter *promotion-fen*
   "2k5/4P3/8/8/8/8/8/4K3 w - - 0 1")
 
 (defun find-move (moves from-square to-square &key promotion)
@@ -59,7 +59,7 @@
 
 (deftest test-find-move-helper
   (testing "find-move locates moves by from/to and promotion"
-    (let* ((pos (position-from-fen +starting-position-fen+))
+    (let* ((pos (position-from-fen *starting-position-fen*))
            (moves (generate-moves pos))
            (move (find-move moves (sq :g1) (sq :f3))))
       (ok move)
@@ -70,7 +70,7 @@
         (ok (null promotion)))
       (ok (not (find-move moves (sq :g1) (sq :g3))))))
   (testing "find-move matches promotion moves"
-    (let* ((pos (position-from-fen +promotion-fen+))
+    (let* ((pos (position-from-fen *promotion-fen*))
            (moves (generate-moves pos))
            (move (find-move moves (sq :e7) (sq :e8) :promotion :queen))
            (default-move (find-move moves (sq :e7) (sq :e8))))
@@ -88,7 +88,7 @@
 
 (deftest test-position-from-fen
   (testing "start position parses correctly"
-    (let ((pos (position-from-fen +starting-position-fen+)))
+    (let ((pos (position-from-fen *starting-position-fen*)))
       (ok (eq :white (pos-side-to-move pos)))
       (ok (null (pos-ep-square pos)))
       (ok (= 0 (monsoon::pos-halfmove-clock pos)))
@@ -102,7 +102,7 @@
 
 (deftest test-generate-moves-starting-position
   (testing "starting position has 20 pseudo-legal moves"
-    (let* ((pos (position-from-fen +starting-position-fen+))
+    (let* ((pos (position-from-fen *starting-position-fen*))
            (moves (generate-moves pos)))
       (ok (= 20 (length moves)))
       (ok (find-move moves (sq :g1) (sq :f3)))
@@ -110,7 +110,7 @@
 
 (deftest test-knight-moves-from-center
   (testing "knight moves are generated from d5"
-    (let* ((pos (position-from-fen +lone-knight-fen+))
+    (let* ((pos (position-from-fen *lone-knight-fen*))
            (moves (generate-moves pos))
            (knight-moves (remove-if-not
                           (lambda (move)
@@ -138,7 +138,7 @@
 
 (deftest test-do-move-double-push
   (testing "double pawn push updates en passant square and side to move"
-    (let* ((pos (position-from-fen +starting-position-fen+))
+    (let* ((pos (position-from-fen *starting-position-fen*))
            (move (find-move (generate-moves pos)
                             (sq :e2) (sq :e4))))
       (ok move)
@@ -152,7 +152,7 @@
 
 (deftest test-do-move-capture
   (testing "captures remove the victim and place the capturing piece"
-    (let* ((pos (position-from-fen +pawn-capture-fen+))
+    (let* ((pos (position-from-fen *pawn-capture-fen*))
            (move (find-move (generate-moves pos)
                             (sq :e4) (sq :d5))))
       (ok move)
@@ -165,7 +165,7 @@
 
 (deftest test-legal-move-p-in-check
   (testing "moves that keep the king in check are illegal"
-    (let* ((pos (position-from-fen +check-fen+))
+    (let* ((pos (position-from-fen *check-fen*))
            (moves (generate-moves pos))
            (illegal (find-move moves (sq :e8) (sq :e7))))
       (ok (king-in-check-p pos :black))
