@@ -165,6 +165,103 @@
   `(logior (rook-attack-mask ,square ,occupied)
 	   (bishop-attack-mask ,square ,occupied)))
 
+(defmacro union-attacks (bb expr)
+  "OR together EXPR evaluated for each set bit of BB. SQ is bound to each bit index."
+  `(iter
+     (with acc = 0)
+     (for sq in-bitboard ,bb)
+     (setf acc (logior acc ,expr))
+     (finally (return acc))))
+
+(defun attacked-by (pos color &key (occupied (pos-occupied-squares pos)))
+  "Return a bitboard of every square attacked by COLOR's pieces in POS.
+   OCCUPIED selects the occupancy used for slider rays; pass a copy with
+   the relevant king removed to test king-move safety."
+  (declare (type position pos)
+           (type color color)
+           (type bitboard occupied))
+  (let* ((boards (pos-boards pos))
+         (pawns   (aref boards (colored-piece-index :pawn   color)))
+         (knights (aref boards (colored-piece-index :knight color)))
+         (bishops (aref boards (colored-piece-index :bishop color)))
+         (rooks   (aref boards (colored-piece-index :rook   color)))
+         (queens  (aref boards (colored-piece-index :queen  color)))
+         (king    (aref boards (colored-piece-index :king   color)))
+         (cap-e   (if (eq color :white) 9 -7))
+         (cap-w   (if (eq color :white) 7 -9)))
+    (logior
+     (logior (ash (logand pawns +not-file-h+) cap-e)
+             (ash (logand pawns +not-file-a+) cap-w))
+     (union-attacks knights (aref +knight-attacks+ sq))
+     (union-attacks (logior bishops queens) (bishop-attack-mask sq occupied))
+     (union-attacks (logior rooks queens)   (rook-attack-mask sq occupied))
+     (union-attacks king (aref +king-attacks+ sq)))))
+
+(defconst +between+
+  ;; between[a][b] = squares strictly between a and b when they are aligned
+  ;; on a file, rank, or diagonal; 0 otherwise. Used to find block squares.
+  (let ((table (make-array '(64 64) :element-type 'bitboard :initial-element 0)))
+    (dolist (dir '(:n :ne :e :se :s :sw :w :nw))
+      (dotimes (from 64)
+        (let ((offset (direction->offset dir))
+              (current from)
+              (between 0))
+          (loop
+            (let ((next (+ current offset)))
+              (unless (and (<= 0 next 63)
+                           (<= (abs (- (file-of next) (file-of current))) 1))
+                (return))
+              (setf (aref table from next) between)
+              (setf between (logior between (ash 1 next)))
+              (setf current next))))))
+    table))
+
+(defmacro opposite-dir (direction)
+  "Return the compass direction opposite DIRECTION."
+  `(ecase ,direction
+     (:n :s) (:s :n) (:e :w) (:w :e)
+     (:ne :sw) (:sw :ne) (:nw :se) (:se :nw)))
+
+(defun pinned-pieces (pos side)
+  "Return (values PINNED PIN-LINES). PINNED is a bitboard of SIDE's pieces
+   pinned to their king by an enemy slider. PIN-LINES is a 64-entry array
+   mapping each pinned piece to the line it is restricted to (NIL when no
+   piece is pinned)."
+  (declare (type position pos) (type color side))
+  (let* ((king-sq (lsb (aref (pos-boards pos) (colored-piece-index :king side))))
+         (opp (opponent side))
+         (occupied (pos-occupied-squares pos))
+         (own (aref (pos-by-color pos) (color-index side)))
+         (opp-bishops (aref (pos-boards pos) (colored-piece-index :bishop opp)))
+         (opp-rooks   (aref (pos-boards pos) (colored-piece-index :rook   opp)))
+         (opp-queens  (aref (pos-boards pos) (colored-piece-index :queen  opp)))
+         (diag-sliders (logior opp-bishops opp-queens))
+         (orth-sliders (logior opp-rooks   opp-queens))
+         (pinned 0)
+         (pin-lines nil))
+    (iter
+      (for dir in '(:ne :nw :se :sw :n :e :s :w))
+      (for diagonal-p = (or (eq dir :ne) (eq dir :nw) (eq dir :se) (eq dir :sw)))
+      (for sliders = (if diagonal-p diag-sliders orth-sliders))
+      (for nearest-fn = (if (or (eq dir :n) (eq dir :e) (eq dir :ne) (eq dir :nw))
+                            #'lsb #'msb))
+      (for ray-bb = (ray dir king-sq))
+      (for blockers = (logand ray-bb occupied))
+      (for near = (unless (zerop blockers) (funcall nearest-fn blockers)))
+      (for near-bit = (when near (ash 1 near)))
+      (for far = (and near
+                      (let ((rest (logandc2 blockers near-bit)))
+                        (unless (zerop rest) (funcall nearest-fn rest)))))
+      (when (and near far
+                 (logbitp near own)
+                 (logbitp far sliders))
+        (setf pinned (logior pinned near-bit))
+        (unless pin-lines
+          (setf pin-lines (make-array 64 :element-type 'bitboard :initial-element 0)))
+        (setf (aref pin-lines near)
+              (logior (ray dir king-sq) (ray (opposite-dir dir) king-sq)))))
+    (values pinned pin-lines)))
+
 (defmacro generate-major-piece-moves (pieces-bb attack-expr friendly enemy)
   "Generate pseudo-legal moves for pieces that are not pawns in pieces-bb"
   `(iter
@@ -313,6 +410,19 @@
 (defconst +white-queenside-sq+  (sq :c1))
 (defconst +black-queenside-sq+  (sq :c8))
 
+;; Castling: the squares the king must not be in check on (transit + destination).
+(defconst +white-kingside-king-path+  (logior (ash 1 (sq :f1)) (ash 1 (sq :g1))))
+(defconst +white-queenside-king-path+ (logior (ash 1 (sq :d1)) (ash 1 (sq :c1))))
+(defconst +black-kingside-king-path+  (logior (ash 1 (sq :f8)) (ash 1 (sq :g8))))
+(defconst +black-queenside-king-path+ (logior (ash 1 (sq :d8)) (ash 1 (sq :c8))))
+
+(defun castling-king-path (side flags)
+  "Return the squares the king must not be in check on for a castling move."
+  (let ((kingside-p (logtest flags +move-flag-kingside+)))
+    (if (eq side :white)
+        (if kingside-p +white-kingside-king-path+ +white-queenside-king-path+)
+        (if kingside-p +black-kingside-king-path+ +black-queenside-king-path+))))
+
 (defmacro with-castling-params (side &body body)
   "Bind castling rights, path masks, and king/rook destination squares for SIDE."
   `(let ((kingside-right  (if (eq ,side :white) +white-kingside+  +black-kingside+))
@@ -419,8 +529,9 @@
           (generate-king-moves   position)
           (generate-castling-moves position)))
 
-(defun king-in-check-p (pos color)
-  "Return true if COLOR's king is in check in POS."
+(defun checkers (pos color)
+  "Return a bitboard of the squares of enemy pieces giving check to COLOR's king."
+  (declare (type position pos) (type color color))
   (let* ((king-bb  (aref (pos-boards pos) (colored-piece-index :king color)))
          (king-sq  (lsb king-bb))
          (opp      (opponent color))
@@ -431,24 +542,21 @@
          (opp-rooks   (aref (pos-boards pos) (colored-piece-index :rook   opp)))
          (opp-queens  (aref (pos-boards pos) (colored-piece-index :queen  opp)))
          (opp-king    (aref (pos-boards pos) (colored-piece-index :king   opp)))
-         (diag-sliders (logior opp-bishops opp-queens))
-         (orth-sliders (logior opp-rooks   opp-queens))
-         ;; Pawn attacks are cast from the king square toward enemy pawns.
          (pawn-cap-e (if (eq color :white) 9 -7))
          (pawn-cap-w (if (eq color :white) 7 -9)))
-    (or
-      ;; Pawn attacks: check whether an opponent pawn sits where our king
-      ;; could capture if it were a pawn itself.
-      (logtest (ash (logand king-bb +not-file-h+) pawn-cap-e) opp-pawns)
-      (logtest (ash (logand king-bb +not-file-a+) pawn-cap-w) opp-pawns)
-      ;; Knight attacks
-      (logtest (aref +knight-attacks+ king-sq) opp-knights)
-      ;; Diagonal sliders (bishop + queen)
-      (logtest (bishop-attack-mask king-sq occupied) diag-sliders)
-      ;; Orthogonal sliders (rook + queen)
-      (logtest (rook-attack-mask king-sq occupied) orth-sliders)
-      ;; King adjacency - prevent kings from moving next to each other.
-      (logtest (aref +king-attacks+ king-sq) opp-king))))
+    (logior
+     (logand (ash (logand king-bb +not-file-h+) pawn-cap-e) opp-pawns)
+     (logand (ash (logand king-bb +not-file-a+) pawn-cap-w) opp-pawns)
+     (logand (aref +knight-attacks+ king-sq) opp-knights)
+     (logand (bishop-attack-mask king-sq occupied)
+             (logior opp-bishops opp-queens))
+     (logand (rook-attack-mask king-sq occupied)
+             (logior opp-rooks opp-queens))
+     (logand (aref +king-attacks+ king-sq) opp-king))))
+
+(defun king-in-check-p (pos color)
+  "Return true if COLOR's king is in check in POS."
+  (not (zerop (checkers pos color))))
 
 (defun legal-move-p (pos move)
   "Return true if MOVE is legal in POS."
