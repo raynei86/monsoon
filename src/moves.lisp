@@ -656,10 +656,15 @@
 
 (defun perft (pos depth)
   "Count leaf nodes by enumerating legal moves to DEPTH."
+  (declare (type (and fixnum (integer 0 *)) depth)
+           (values fixnum))
   (if (zerop depth)
       1
       (let ((ctx (make-legality-context pos)))
         (iter
+          (with total = 0)
           (for move in (generate-moves pos))
           (when (move-legal-p ctx pos move)
-            (summing (perft (do-move pos move) (1- depth))))))))
+            (setf total (the fixnum (+ total (the fixnum (perft (do-move pos move)
+                                                                (1- depth)))))))
+          (finally (return total))))))
