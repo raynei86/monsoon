@@ -46,7 +46,7 @@
 (defun piece-at (position square)
   (declare (type square square))
   "Returns the piece type on `square`. Assumes the square is occupied."
-   (let* ((color (color-at position square))
+  (let* ((color (color-at position square))
          (boards (pos-boards position)))
     (cond
       ((logbitp square (aref boards (colored-piece-index :pawn   color))) :pawn)
