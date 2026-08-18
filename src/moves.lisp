@@ -491,74 +491,113 @@
 	moves))))
 
 ;; Final stages, move legality and actually making the moves
+(defun do-move! (position move)
+  "Apply MOVE to POSITION in place.
+   Returns (values MOVING-CPC CAPTURED-CPC OLD-CASTLING OLD-EP OLD-HALFMOVE
+   OLD-FULLMOVE), the values UNDO-MOVE! needs to restore POSITION."
+  (let* ((side (pos-side-to-move position))
+         (opp (opponent side))
+         (pawn-dir (if (eq side :white) -8 +8))
+         (old-castling (pos-castling position))
+         (old-ep (pos-ep-square position))
+         (old-halfmove (pos-halfmove-clock position))
+         (old-fullmove (pos-fullmove-number position)))
+    (with-move (from to promotion flags) move
+      (let ((captured-cpc
+              (when (logtest flags +move-flag-capture+)
+                (if (logtest flags +move-flag-ep+)
+                    (colored-piece-index :pawn opp)
+                    (colored-piece-index (piece-at position to) opp)))))
+        (when captured-cpc
+          (remove-piece! position
+                         (if (logtest flags +move-flag-ep+) (+ to pawn-dir) to)
+                         captured-cpc))
+        (let ((moving-cpc (colored-piece-index (piece-at position from) side)))
+          (remove-piece! position from moving-cpc)
+          (place-piece! position to moving-cpc)
+          ;; If promotion just replace over it
+          (when promotion
+            (remove-piece! position to moving-cpc)
+            (place-piece! position to (colored-piece-index promotion side)))
+          ;; Castling and relocate rook
+          (let ((rook-cpc (colored-piece-index :rook side)))
+            (cond
+              ((logtest flags +move-flag-kingside+)
+               (remove-piece! position (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc)
+               (place-piece!  position (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc))
+              ((logtest flags +move-flag-queenside+)
+               (remove-piece! position (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc)
+               (place-piece!  position (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc))))
+          ;; Set the new en passant square on a double pawn push.
+          (setf (pos-ep-square position)
+                (when (logtest flags +move-flag-double+) (+ to pawn-dir)))
+          ;; Update castling rights.
+          (setf (pos-castling position)
+                (logand old-castling
+                        (logand (aref +castling-rights-mask+ from)
+                                (aref +castling-rights-mask+ to))))
+          ;; Halfmove clock: reset on pawn move or capture, otherwise increment.
+          (setf (pos-halfmove-clock position)
+                (if (or (zerop (ash moving-cpc -1)) ; the moving piece is a pawn
+                        (logtest flags +move-flag-capture+))
+                    0
+                    (1+ old-halfmove)))
+          ;; Fullmove number increments after black's reply.
+          (when (eq side :black)
+            (incf (pos-fullmove-number position)))
+          ;; Flip the side to move.
+          (setf (pos-side-to-move position) opp)
+          (values moving-cpc captured-cpc old-castling old-ep
+                  old-halfmove old-fullmove))))))
+
+(defun undo-move! (position move moving-cpc captured-cpc
+                   old-castling old-ep old-halfmove old-fullmove)
+  "Reverse the effect of DO-MOVE! on POSITION."
+  (let* ((side (if (logbitp 0 moving-cpc) :black :white))
+         (pawn-dir (if (eq side :white) -8 +8)))
+    (with-move (from to promotion flags) move
+      ;; Move the piece back from TO to FROM, reversing any promotion.
+      (remove-piece! position to
+                     (if promotion
+                         (colored-piece-index promotion side)
+                         moving-cpc))
+      (place-piece! position from moving-cpc)
+      ;; Restore any captured piece.
+      (when captured-cpc
+        (place-piece! position
+                      (if (logtest flags +move-flag-ep+) (+ to pawn-dir) to)
+                      captured-cpc))
+      ;; Restore the rook relocated by castling.
+      (let ((rook-cpc (colored-piece-index :rook side)))
+        (cond
+          ((logtest flags +move-flag-kingside+)
+           (remove-piece! position (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc)
+           (place-piece!  position (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc))
+          ((logtest flags +move-flag-queenside+)
+           (remove-piece! position (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc)
+           (place-piece!  position (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc))))
+      ;; Restore scalar state.
+      (setf (pos-castling position) old-castling
+            (pos-ep-square position) old-ep
+            (pos-halfmove-clock position) old-halfmove
+            (pos-fullmove-number position) old-fullmove
+            (pos-side-to-move position) side))))
+
+(defmacro with-move-applied ((position move) &body body)
+  "Apply MOVE to POSITION in place, run BODY, then undo.
+   POSITION is restored on exit, including non-local exits."
+  (with-gensyms (m moving captured castling ep halfmove fullmove)
+    `(let ((,m ,move))
+       (multiple-value-bind (,moving ,captured ,castling ,ep ,halfmove ,fullmove)
+           (do-move! ,position ,m)
+         (unwind-protect
+              (progn ,@body)
+           (undo-move! ,position ,m ,moving ,captured ,castling ,ep ,halfmove ,fullmove))))))
+
 (defun do-move (position move)
-  "Apply MOVE to POSITION and return the resulting position."
-  (let* ((new-pos (copy-position position))
-         (side    (pos-side-to-move new-pos))
-         (opp     (opponent side))
-	 (pawn-dir (if (eq side :white) -8 +8)))
-    (nest
-     (with-move (from to promotion flags) move
-
-       ;; First handle captures
-       (when (logtest flags +move-flag-capture+)
-	 (if (logtest flags +move-flag-ep+)
-	     ;; En-passant slightly different
-	     (remove-piece! new-pos
-			    (+ to pawn-dir)
-			    (colored-piece-index :pawn opp))
-	     (remove-piece! new-pos
-			    to
-			    (colored-piece-index (piece-at new-pos to) opp))))
-
-       ;; Now actually move the piece and update all the boards
-       (let ((cpc (colored-piece-index (piece-at new-pos from) side)))
-	 (remove-piece! new-pos from cpc)
-	 (place-piece! new-pos to cpc)
-	 ;; If promotion just replace over it
-	 (when promotion
-	   (remove-piece! new-pos to cpc)
-	   (place-piece! new-pos to (colored-piece-index promotion side))))
-
-       ;; Castling and relocate rook
-       (let ((rook-cpc (colored-piece-index :rook side)))
-	 (cond
-	   ((logtest flags +move-flag-kingside+)
-	    (remove-piece! new-pos (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc)
-            (place-piece!  new-pos (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc))
-	   ((logtest flags +move-flag-queenside+)
-	    (remove-piece! new-pos (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc)
-            (place-piece!  new-pos (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc))))
-
-      
-       ;; Set the new en passant square: only on a double pawn push, one
-       ;; rank behind the destination.
-       (setf (pos-ep-square new-pos)
-	     (when (logtest flags +move-flag-double+)
-	       (+ to pawn-dir)))
-
-       ;; Update castling rights. Both `from` and `to` are checked so
-       ;; capturing a rook on its home square strips that right
-       ;; automatically.
-       (setf (pos-castling new-pos)
-             (logand (pos-castling new-pos)
-                     (logand (aref +castling-rights-mask+ from)
-                             (aref +castling-rights-mask+ to))))
-
-       ;; Halfmove clock: reset on pawn move or capture, otherwise
-       ;; increment.
-       (setf (pos-halfmove-clock new-pos)
-             (if (or (eq (piece-at position from) :pawn)
-                     (logtest flags +move-flag-capture+))
-                 0
-                 (1+ (pos-halfmove-clock new-pos))))
-
-       ;; Fullmove number increments after black's reply.
-       (when (eq side :black)
-         (incf (pos-fullmove-number new-pos)))
-
-       ;; Flip the side to move.
-       (setf (pos-side-to-move new-pos) opp)))
+  "Apply MOVE to POSITION and return the resulting position (a fresh copy)."
+  (let ((new-pos (copy-position position)))
+    (do-move! new-pos move)
     new-pos))
 
 (defun generate-moves (position)
@@ -707,6 +746,6 @@
           (with total = 0)
           (for move in (generate-moves pos))
           (when (move-legal-p ctx pos move)
-            (setf total (the fixnum (+ total (the fixnum (perft (do-move pos move)
-                                                                (1- depth)))))))
+            (with-move-applied (pos move)
+              (setf total (the fixnum (+ total (the fixnum (perft pos (1- depth))))))))
           (finally (return total))))))
