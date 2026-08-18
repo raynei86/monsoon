@@ -448,8 +448,11 @@
 
 (defun generate-legal-moves (pos)
   "Generate the legal moves for the side to move in POS."
-  (let ((legal-move (lambda (move) (legal-move-p pos move))))
-    (delete-if-not legal-move (generate-moves pos))))
+  (iter
+    (for move in (generate-moves pos))
+    (for new-pos = (do-move pos move))
+    (when (not (king-in-check-p new-pos (pos-side-to-move pos)))
+      (collect move))))
 
 (defun perft (pos depth)
   "Count leaf nodes by enumerating legal moves to DEPTH."
@@ -457,5 +460,6 @@
       1
       (iter
         (for move in (generate-moves pos))
-        (when (legal-move-p pos move)
-          (summing (perft (do-move pos move) (1- depth)))))))
+        (for new-pos = (do-move pos move))
+        (when (not (king-in-check-p new-pos (pos-side-to-move pos)))
+          (summing (perft new-pos (1- depth)))))))
