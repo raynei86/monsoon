@@ -313,25 +313,19 @@
      friendly enemy)))
 
 ;; Pawn move generation
-;; These masks just set the bit "north"/"south" of a board with a set bit
-(defun shift-north (bb)
-  "Shift BB one rank toward rank 8, discarding bits off the board."
-  (logand (ash bb  8) +full-board+))
-
-(defun shift-south (bb)
-  "Shift BB one rank toward rank 1, discarding bits off the board."
-  (logand (ash bb -8) +full-board+))
-
 (defmacro with-pawn-params (side &body body)
   "Bind pawn movement parameters for `side. All shifts are from the
-   perspective of the board (east = toward file H), not the pawn."
-  `(let ((push-fn     (if (eq ,side :white) #'shift-north #'shift-south))
-	 (push-shift  (if (eq ,side :white)  8  -8))
+   perspective of the board (east = toward file H), not the pawn.
+   SHIFT-BOARD pushes a bitboard one rank toward the opponent, keeping
+   the result within 64 bits."
+  `(let ((push-shift  (if (eq ,side :white)  8  -8))
 	 (cap-e-shift (if (eq ,side :white)  9  -7)) ; NE / SE
 	 (cap-w-shift (if (eq ,side :white)  7  -9)) ; NW / SW
 	 (start-rank  (if (eq ,side :white) +rank-2+ +rank-7+))
 	 (promo-rank  (if (eq ,side :white) +rank-8+ +rank-1+)))
-     ,@body))
+     (macrolet ((shift-board (bb)
+		  `(logand (ash ,bb push-shift) +full-board+)))
+       ,@body)))
 
 (defmacro emit-pawn-moves (targets shift &optional (flags 0))
   "Emit moves for all targets, deriving the source square as (target - shift)."
@@ -358,10 +352,9 @@
              (empty (logand (lognot occupied) +full-board+))
 
              ;; Pushes
-             (push1 (logand (funcall push-fn pawns) empty))
-	     (push2 (logand (funcall push-fn
-				     (logand (funcall push-fn (logand pawns start-rank))
-					     empty))
+             (push1 (logand (shift-board pawns) empty))
+	     (push2 (logand (shift-board (logand (shift-board (logand pawns start-rank))
+						 empty))
 			    empty))
 
              ;; Captures
