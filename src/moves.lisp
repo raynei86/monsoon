@@ -558,25 +558,108 @@
   "Return true if COLOR's king is in check in POS."
   (not (zerop (checkers pos color))))
 
+(defstruct (legality-context (:constructor %make-legality-context)
+                             (:conc-name legality-context-))
+  "Precomputed invariants used to classify move legality without making the
+   move or scanning for checks on every candidate."
+  (side nil :type color)
+  (king-sq 0 :type square)
+  (in-check-p nil)
+  (king-danger 0 :type bitboard)
+  (pinned 0 :type bitboard)
+  (pin-lines nil :type (or null (simple-array bitboard (64))))
+  (evasion-mask 0 :type bitboard))
+
+(defun evasion-mask (pos side)
+  "Return the target squares a non-king move must reach to resolve a check on
+   SIDE. Returns +FULL-BOARD+ when SIDE is not in check and 0 for double check."
+  (let* ((checkers-bb (checkers pos side))
+         (n (logcount checkers-bb)))
+    (cond
+      ((zerop n) +full-board+)
+      ((> n 1) 0)
+      (t (let* ((king-sq    (lsb (aref (pos-boards pos) (colored-piece-index :king side))))
+                (checker-sq (lsb checkers-bb)))
+           (logior (ash 1 checker-sq)
+                   (aref +between+ king-sq checker-sq)))))))
+
+(defun evasion-move-p (ctx move)
+  "Return true if MOVE resolves the check recorded in context CTX.
+   Only called for non-king moves while the side to move is in check."
+  (with-move (from to promotion flags) move
+    (declare (ignore promotion flags))
+    (and (logtest (ash 1 to) (legality-context-evasion-mask ctx))
+         (or (not (logbitp from (legality-context-pinned ctx)))
+             (logtest (ash 1 to) (aref (legality-context-pin-lines ctx) from))))))
+
+(defun make-legality-context (pos)
+  "Build the legality invariants for POS's side to move."
+  (let* ((side (pos-side-to-move pos))
+         (opp (opponent side))
+         (king-bb (aref (pos-boards pos) (colored-piece-index :king side)))
+         (king-sq (lsb king-bb))
+         (occupied (pos-occupied-squares pos))
+         (king-danger (attacked-by pos opp
+                                   :occupied (logandc2 occupied king-bb)))
+         (in-check-p (logbitp king-sq king-danger)))
+    (multiple-value-bind (pinned pin-lines)
+        (pinned-pieces pos side)
+      (%make-legality-context
+       :side side
+       :king-sq king-sq
+       :in-check-p in-check-p
+       :king-danger king-danger
+       :pinned pinned
+       :pin-lines pin-lines
+       :evasion-mask (if in-check-p (evasion-mask pos side) +full-board+)))))
+
+(defun move-legal-p (ctx pos move)
+  "Return true if MOVE is legal in POS, using the precomputed context CTX."
+  (let ((side (legality-context-side ctx))
+        (king-sq (legality-context-king-sq ctx)))
+    (with-move (from to promotion flags) move
+      (declare (ignore promotion))
+      (cond
+        ;; Castling: illegal out of, through, or into check.
+        ((logtest flags (logior +move-flag-kingside+ +move-flag-queenside+))
+         (and (not (legality-context-in-check-p ctx))
+              (not (logtest (attacked-by pos (opponent side))
+                            (castling-king-path side flags)))))
+        ;; King moves: destination must not be attacked. Enemy attacks were
+        ;; computed with our king removed, so retreats onto a vacated line
+        ;; (which the moving king would otherwise block) are caught.
+        ((= from king-sq)
+         (not (logbitp to (legality-context-king-danger ctx))))
+        ;; En passant removes two pawns, which can expose a rank attack.
+        ((logtest flags +move-flag-ep+)
+         (not (king-in-check-p (do-move pos move) side)))
+        ;; In check: only capturing the checker or blocking its line helps.
+        ((legality-context-in-check-p ctx)
+         (evasion-move-p ctx move))
+        ;; Pinned pieces must stay on their pin line.
+        ((logbitp from (legality-context-pinned ctx))
+         (logtest (ash 1 to) (aref (legality-context-pin-lines ctx) from)))
+        ;; Everything else is legal.
+        (t t)))))
+
 (defun legal-move-p (pos move)
   "Return true if MOVE is legal in POS."
-  (let ((new-pos (do-move pos move)))
-    (not (king-in-check-p new-pos (pos-side-to-move pos)))))
+  (move-legal-p (make-legality-context pos) pos move))
 
 (defun generate-legal-moves (pos)
   "Generate the legal moves for the side to move in POS."
-  (iter
-    (for move in (generate-moves pos))
-    (for new-pos = (do-move pos move))
-    (when (not (king-in-check-p new-pos (pos-side-to-move pos)))
-      (collect move))))
+  (let ((ctx (make-legality-context pos)))
+    (iter
+      (for move in (generate-moves pos))
+      (when (move-legal-p ctx pos move)
+        (collect move)))))
 
 (defun perft (pos depth)
   "Count leaf nodes by enumerating legal moves to DEPTH."
   (if (zerop depth)
       1
-      (iter
-        (for move in (generate-moves pos))
-        (for new-pos = (do-move pos move))
-        (when (not (king-in-check-p new-pos (pos-side-to-move pos)))
-          (summing (perft new-pos (1- depth)))))))
+      (let ((ctx (make-legality-context pos)))
+        (iter
+          (for move in (generate-moves pos))
+          (when (move-legal-p ctx pos move)
+            (summing (perft (do-move pos move) (1- depth))))))))
