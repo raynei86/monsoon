@@ -3,6 +3,7 @@
 
 (in-package #:monsoon)
 
+(declaim (optimize (speed 3) (safety 1)))
 (declaim (inline sq file-of rank-of color-index piece-index colored-piece-index))
 
 ;; Squares and board

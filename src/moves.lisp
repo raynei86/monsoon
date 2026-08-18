@@ -3,6 +3,8 @@
 
 (in-package #:monsoon)
 
+(declaim (optimize (speed 3) (safety 1)))
+
 ;; Types and declarations 
 (defstruct (move (:constructor make-move (from to &optional promotion flags)))
   "A move between two squares, with an optional promotion piece and flag bits."

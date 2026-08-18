@@ -2,6 +2,7 @@
 
 (in-package :monsoon)
 
+(declaim (optimize (speed 3) (safety 1)))
 (declaim (inline lsb msb))
 
 ;; Bits related utils

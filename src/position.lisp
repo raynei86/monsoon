@@ -4,6 +4,7 @@
 
 (in-package #:monsoon)
 
+(declaim (optimize (speed 3) (safety 1)))
 (declaim (inline occupied-p color-at piece-at occupant-at place-piece! remove-piece! opponent))
 
 (defstruct (position (:conc-name pos-)
