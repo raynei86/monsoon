@@ -15,15 +15,15 @@
 (defmacro with-fen-fields ((placement side castling ep halfmove fullmove) fen &body body)
   "Destructure the six fields of a FEN string into named bindings."
   `(destructuring-bind (,placement ,side ,castling ,ep ,halfmove ,fullmove)
-       (serapeum:tokens ,fen)
+       (tokens ,fen)
      ,@body))
 
 (defun parse-placement! (pos placement-str)
   "Populate POS with pieces from PLACEMENT-STR."
-  (it:iter
-    (it:with rank = 7)   ; FEN starts from rank 8 (index 7) and descends
-    (it:with file = 0)
-    (it:for ch in-sequence placement-str)
+  (iter
+    (with rank = 7)   ; FEN starts from rank 8 (index 7) and descends
+    (with file = 0)
+    (for ch in-sequence placement-str)
     (cond
       ((char= ch #\/)    (setf file 0) (decf rank))
       ((digit-char-p ch) (incf file (digit-char-p ch)))
@@ -39,9 +39,9 @@
 
 (defun parse-castling (castling-str)
   "Parse CASTLING-STR into castling rights."
-  (it:iter
-    (it:for ch in-sequence castling-str)
-    (it:sum (case ch
+  (iter
+    (for ch in-sequence castling-str)
+    (sum (case ch
               (#\K +white-kingside+)  (#\Q +white-queenside+)
               (#\k +black-kingside+)  (#\q +black-queenside+)
               (t 0)))))

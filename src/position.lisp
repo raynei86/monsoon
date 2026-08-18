@@ -99,7 +99,7 @@
 
 (defmacro with-position ((side occupied friendly enemy) position &body body)
   "Binds some necessary information about the position"
-  (alexandria:with-gensyms (pos color-index)
+  (with-gensyms (pos color-index)
     `(let* ((,pos        ,position)
             (,side     (pos-side-to-move ,pos))
             (,color-index      (color-index ,side))

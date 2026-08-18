@@ -23,26 +23,26 @@
   "A bitboard represented using a 64-bit integer."
   '(unsigned-byte 64))
 
-(serapeum:defconst +full-board+ #xFFFFFFFFFFFFFFFF)
-(serapeum:defconst +rank-1+ #x00000000000000FF)
-(serapeum:defconst +rank-2+ #x000000000000FF00)
-(serapeum:defconst +rank-4+ #x00000000FF000000)
-(serapeum:defconst +rank-5+ #x000000FF00000000)
-(serapeum:defconst +rank-7+ #x00FF000000000000)
-(serapeum:defconst +rank-8+ #xFF00000000000000)
-(serapeum:defconst +not-file-a+ #xFEFEFEFEFEFEFEFE)
-(serapeum:defconst +not-file-h+ #x7F7F7F7F7F7F7F7F)
+(defconst +full-board+ #xFFFFFFFFFFFFFFFF)
+(defconst +rank-1+ #x00000000000000FF)
+(defconst +rank-2+ #x000000000000FF00)
+(defconst +rank-4+ #x00000000FF000000)
+(defconst +rank-5+ #x000000FF00000000)
+(defconst +rank-7+ #x00FF000000000000)
+(defconst +rank-8+ #xFF00000000000000)
+(defconst +not-file-a+ #xFEFEFEFEFEFEFEFE)
+(defconst +not-file-h+ #x7F7F7F7F7F7F7F7F)
 
 (deftype castling-rights ()
   "4 bits to represent castling rights."
   '(unsigned-byte 4))
 
-(serapeum:defconst +white-kingside+  #b1000)
-(serapeum:defconst +white-queenside+ #b0100)
-(serapeum:defconst +black-kingside+  #b0010)
-(serapeum:defconst +black-queenside+ #b0001)
+(defconst +white-kingside+  #b1000)
+(defconst +white-queenside+ #b0100)
+(defconst +black-kingside+  #b0010)
+(defconst +black-queenside+ #b0001)
 
-(serapeum:defconst +castling-rights-mask+
+(defconst +castling-rights-mask+
   ;; ANDed with current rights when a piece moves from or to that square.
   ;; All other squares have #b1111 as a no-op
   (let ((table (make-array 64 :initial-element #b1111)))

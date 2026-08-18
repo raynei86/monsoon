@@ -1,7 +1,8 @@
 (defpackage :monsoon
-  (:use :cl)
+  (:use :cl :iterate)
   (:shadow :position)
-  (:local-nicknames (:it :iterate))
+  (:import-from :serapeum #:defconst #:tokens #:nest)
+  (:import-from :alexandria #:with-gensyms)
 
   (:export
    #:square

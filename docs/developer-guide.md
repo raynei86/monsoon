@@ -40,11 +40,11 @@ All fundamental types are defined as `deftype` aliases over CL integer types, ke
 - An occupancy bitboard that is always kept in sync.
 - Side to move, castling rights, en passant square, and clocks.
 
-The `sq` macro converts symbolic square names (`:e4`, `:h1`, etc.) to their integer index **at compile time**, making it safe to use inside `serapeum:defconst` and other load-time forms without runtime cost. It cannot accept a runtime value.
+The `sq` macro converts symbolic square names (`:e4`, `:h1`, etc.) to their integer index **at compile time**, making it safe to use inside `defconst` and other load-time forms without runtime cost. It cannot accept a runtime value.
 
 `colored-piece-index` maps a `(piece, color)` pair to an integer in `[0, 11]` by interleaving colors: white pawn → 0, black pawn → 1, white knight → 2, and so on up to black king → 11. This index is the key into every `pos-boards` array slot. `color-index` and `piece-index` compute the components separately when needed.
 
-All constants use `serapeum:defconst` rather than `defconstant`. SBCL treats `defconstant` redefinition as an error during interactive development; `defconst` avoids this while still communicating the intent.
+All constants use `defconst` (imported from `serapeum`) rather than `defconstant`. SBCL treats `defconstant` redefinition as an error during interactive development; `defconst` avoids this while still communicating the intent.
 
 ## Board representation
 
@@ -84,7 +84,7 @@ The attack-mask forms (`rook-attack-mask`, `bishop-attack-mask`, `queen-attack-m
 
 ## FEN parsing
 
-`position-from-fen` is the primary constructor for positions. The `with-fen-fields` macro destructures the six space-separated FEN fields from the input string using `serapeum:tokens`. Each field is then parsed by a dedicated helper: `parse-placement!` walks the piece-placement string and calls `place-piece!` for each piece character it encounters; `parse-castling` accumulates the rights bits; `parse-ep-square` converts the algebraic square string to an index by interning it as a keyword and passing it through `sq`.
+`position-from-fen` is the primary constructor for positions. The `with-fen-fields` macro destructures the six space-separated FEN fields from the input string using `tokens`. Each field is then parsed by a dedicated helper: `parse-placement!` walks the piece-placement string and calls `place-piece!` for each piece character it encounters; `parse-castling` accumulates the rights bits; `parse-ep-square` converts the algebraic square string to an index by interning it as a keyword and passing it through `sq`.
 
 FEN parsing does not validate the resulting position. It trusts well-formed input.
 
@@ -124,9 +124,9 @@ Engine behaviour is customised by overriding generic functions:
 
 | Library | Role |
 |---|---|
-| `iterate` | Extended iteration (`it:iter`, `it:for`, `in-bitboard` clause) |
+| `iterate` | Extended iteration (`iter`, `for`, `in-bitboard` clause) |
 | `serapeum` | `defconst`, `tokens`, `nest` |
 | `alexandria` | `with-gensyms` in macro internals |
 | `rove` | Test framework (test system only) |
 
-The package declares `(:local-nicknames (:it :iterate))`, so all iterate forms within `:monsoon` are prefixed `it:`.
+The package `:use`s `:iterate`, so iterate forms within `:monsoon` are written bare (`iter`, `for`, `collect`, …).

@@ -2,7 +2,7 @@
 
 (in-package #:monsoon)
 
-(serapeum:defconst +uci-startpos-fen+
+(defconst +uci-startpos-fen+
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
 (defstruct (uci-option (:constructor make-uci-option
@@ -205,14 +205,14 @@ resources and terminate any background threads here. The default implementation 
     (#\n :knight)))
 
 (defun uci-lookup-move (position from to promotion)
-  (it:iter
-    (it:for move in (generate-moves position))
+  (iter
+    (for move in (generate-moves position))
     (when (and (eql from (move-from move))
                (eql to (move-to move))
                (eql promotion (move-promotion move))
                (legal-move-p position move))
-      (it:leave move))
-    (it:finally
+      (leave move))
+    (finally
      (error "Illegal or unknown move: ~a~a~@[~c~]"
             (uci-square-string from)
             (uci-square-string to)
@@ -386,7 +386,7 @@ resources and terminate any background threads here. The default implementation 
                         (format nil "bestmove ~a" bestmove-string)))))
 
 (defun uci-handle-line (engine line &key (output *standard-output*))
-  (let ((tokens (serapeum:tokens line)))
+  (let ((tokens (tokens line)))
     (when tokens
       (let ((command (string-downcase (first tokens))))
         (cond

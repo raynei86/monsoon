@@ -18,19 +18,19 @@
      (declare (ignorable ,flags))
      ,@body))
 
-(serapeum:defconst +move-flag-capture+   #b00001)
-(serapeum:defconst +move-flag-double+    #b00010)
-(serapeum:defconst +move-flag-ep+        #b00100)
-(serapeum:defconst +move-flag-kingside+  #b01000)
-(serapeum:defconst +move-flag-queenside+ #b10000)
+(defconst +move-flag-capture+   #b00001)
+(defconst +move-flag-double+    #b00010)
+(defconst +move-flag-ep+        #b00100)
+(defconst +move-flag-kingside+  #b01000)
+(defconst +move-flag-queenside+ #b10000)
 
 (defun emit-moves (from targets-bb &optional (flags 0))
   "Return moves from FROM to each target in TARGETS-BB."
   (declare (type square from)
            (type bitboard targets-bb))
-  (it:iter
+  (iter
     (for target in-bitboard targets-bb)
-    (it:collect (make-move from target nil flags))))
+    (collect (make-move from target nil flags))))
 
 ;; Attack tables
 ;; Precompute king and knight attacks for every square.
@@ -45,29 +45,29 @@
 
 (defmacro offsets (&rest dirs)
   "Translates compass keywords to a list of integer offsets."
-  `(it:iter
-     (it:for dir in ,dirs)
-     (it:collect (direction-to-offset dir))))
+  `(iter
+     (for dir in ,dirs)
+     (collect (direction-to-offset dir))))
 
 (defmacro generate-attack-table (directions &body check-logic)
-  `(it:iter
-     (it:with table = (make-array 64 :element-type 'bitboard :initial-element 0))
-     (it:for sq from 0 below 64)
+  `(iter
+     (with table = (make-array 64 :element-type 'bitboard :initial-element 0))
+     (for sq from 0 below 64)
      (setf (aref table sq)
-	   (it:iter
-	     (it:for offset in (offsets ,@directions))
-	     (it:for to = (+ sq offset))
+	   (iter
+	     (for offset in (offsets ,@directions))
+	     (for to = (+ sq offset))
 	     (when (and (<= 0 to 63)
 			(let ((from sq) (to to)) ,@check-logic))
-	       (it:sum (ash 1 to) into attacks))
-	     (it:finally (return attacks))))
-     (it:finally (return table))))
+	       (sum (ash 1 to) into attacks))
+	     (finally (return attacks))))
+     (finally (return table))))
 
-(serapeum:defconst +king-attacks+
+(defconst +king-attacks+
   (generate-attack-table '(:n :s :e :w :ne :nw :se :sw)
     (<= (abs (- (file-of from) (file-of to))) 1))) 
 
-(serapeum:defconst +knight-attacks+
+(defconst +knight-attacks+
   (generate-attack-table '(:nne :nee :see :sse :ssw :sww :nww :nnw)
     (let ((df (abs (- (file-of from) (file-of to))))
 	  (dr (abs (- (rank-of from) (rank-of to)))))
@@ -79,23 +79,23 @@
 (defmacro generate-ray-table (direction)
   "Creates an attack table for rays going in that direction, ignoring attackers"
   (let ((offset (direction-to-offset direction)))
-    `(it:iter
-       (it:with table = (make-array 64 :element-type 'bitboard :initial-element 0))
-       (it:for sq from 0 below 64)
+    `(iter
+       (with table = (make-array 64 :element-type 'bitboard :initial-element 0))
+       (for sq from 0 below 64)
        (setf (aref table sq)
-	     (it:iter
-	       (it:for current initially sq then next)
-	       (it:for next = (+ current ,offset))
-	       (it:while (and (<= 0 next 63)
+	     (iter
+	       (for current initially sq then next)
+	       (for next = (+ current ,offset))
+	       (while (and (<= 0 next 63)
 			      (<= (abs (- (file-of next) (file-of current))) 1)))
-	       (it:sum (ash 1 next) into ray)
-	       (it:finally (return ray))))
-       (it:finally (return table)))))
+	       (sum (ash 1 next) into ray)
+	       (finally (return ray))))
+       (finally (return table)))))
 
 (deftype ray-table () '(simple-array bitboard (64)))
 (deftype ray-set   () '(simple-array ray-table (8)))
 
-(serapeum:defconst +rays+
+(defconst +rays+
   (the ray-set
        (make-array 8 :element-type 'ray-table
 		     :initial-contents
@@ -156,13 +156,13 @@
 
 (defmacro generate-major-piece-moves (pieces-bb attack-expr friendly enemy)
   "Generate pseudo-legal moves for pieces that are not pawns in pieces-bb"
-  `(it:iter
+  `(iter
      (for from in-bitboard ,pieces-bb)
      (let* ((attacks (logandc2 ,attack-expr ,friendly))
 	    (captures (logand attacks ,enemy))
 	    (quiets (logandc2 attacks ,enemy)))
-       (it:appending (emit-moves from captures +move-flag-capture+))
-       (it:appending (emit-moves from quiets)))))
+       (appending (emit-moves from captures +move-flag-capture+))
+       (appending (emit-moves from quiets)))))
 
 (defun generate-knight-moves (position)
   "Generate pseudo-legal knight moves for the side to move."
@@ -222,18 +222,18 @@
 
 (defmacro emit-pawn-moves (targets shift &optional (flags 0))
   "Emit moves for all targets, deriving the source square as (target - shift)."
-  `(it:iter
+  `(iter
     (for target in-bitboard ,targets)
-    (it:collect (make-move (- target ,shift) target nil ,flags))))
+    (collect (make-move (- target ,shift) target nil ,flags))))
 
 (defmacro emit-pawn-promos (targets shift &optional (flags 0))
   "Emit all 4 promotion types as moves"
-  `(it:iter
+  `(iter
      (for target in-bitboard ,targets)
-     (it:appending
-      (it:iter
-	(it:for promo in '(:queen :rook :bishop :knight))
-	(it:collect (make-move (- target ,shift) target promo ,flags))))))
+     (appending
+      (iter
+	(for promo in '(:queen :rook :bishop :knight))
+	(collect (make-move (- target ,shift) target promo ,flags))))))
 
 (defun generate-pawn-moves (position)
   "Generate pseudo-legal pawn moves for the side to move."
@@ -285,10 +285,10 @@
 
 
 ;; Castling move generation
-(serapeum:defconst +white-kingside-path+  (logior (ash 1 (sq :f1)) (ash 1 (sq :g1))))
-(serapeum:defconst +white-queenside-path+ (logior (ash 1 (sq :b1)) (ash 1 (sq :c1)) (ash 1 (sq :d1))))
-(serapeum:defconst +black-kingside-path+  (logior (ash 1 (sq :f8)) (ash 1 (sq :g8))))
-(serapeum:defconst +black-queenside-path+ (logior (ash 1 (sq :b8)) (ash 1 (sq :c8)) (ash 1 (sq :d8))))
+(defconst +white-kingside-path+  (logior (ash 1 (sq :f1)) (ash 1 (sq :g1))))
+(defconst +white-queenside-path+ (logior (ash 1 (sq :b1)) (ash 1 (sq :c1)) (ash 1 (sq :d1))))
+(defconst +black-kingside-path+  (logior (ash 1 (sq :f8)) (ash 1 (sq :g8))))
+(defconst +black-queenside-path+ (logior (ash 1 (sq :b8)) (ash 1 (sq :c8)) (ash 1 (sq :d8))))
 
 (defmacro with-castling-params (side &body body)
   `(let ((kingside-right  (if (eq ,side :white) +white-kingside+  +black-kingside+))
@@ -321,7 +321,7 @@
          (side    (pos-side-to-move new-pos))
          (opp     (opponent side))
 	 (pawn-dir (if (eq side :white) -8 +8)))
-    (serapeum:nest
+    (nest
      (with-move (from to promotion flags) move
 
        ;; First handle captures
@@ -439,7 +439,7 @@
   "Count leaf nodes by enumerating legal moves to DEPTH."
   (if (zerop depth)
       1
-      (it:iter
-        (it:for move in (generate-moves pos))
+      (iter
+        (for move in (generate-moves pos))
         (when (legal-move-p pos move)
-          (it:summing (perft (do-move pos move) (1- depth)))))))
+          (summing (perft (do-move pos move) (1- depth)))))))
