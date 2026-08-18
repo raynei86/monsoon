@@ -3,20 +3,20 @@
 
 (in-package #:monsoon)
 
-(declaim (inline file-of rank-of color-index piece-index colored-piece-index))
+(declaim (inline sq file-of rank-of color-index piece-index colored-piece-index))
 
 ;; Squares and board
 (deftype square ()
   "A chess board square. It's a number in the range [0, 63]"
   '(unsigned-byte 6))
 
-(defmacro sq (name)
-  "Translates a symbol like :e4 to an integer like 28"
-  (when (symbolp name)
-      (let* ((str (symbol-name name))
-             (file (- (char-code (char-downcase (char str 0))) (char-code #\a)))
-             (rank (1- (digit-char-p (char str 1)))))
-        (+ (* rank 8) file))))
+(defun sq (name)
+  "Translate a symbol like :e4 to its square index."
+  (declare (type symbol name))
+  (let* ((str (symbol-name name))
+         (file (- (char-code (char-downcase (char str 0))) (char-code #\a)))
+         (rank (1- (digit-char-p (char str 1)))))
+    (+ (* rank 8) file)))
 
 
 (deftype bitboard ()

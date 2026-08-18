@@ -40,7 +40,7 @@ All fundamental types are defined as `deftype` aliases over CL integer types, ke
 - An occupancy bitboard that is always kept in sync.
 - Side to move, castling rights, en passant square, and clocks.
 
-The `sq` macro converts symbolic square names (`:e4`, `:h1`, etc.) to their integer index **at compile time**, making it safe to use inside `defconst` and other load-time forms without runtime cost. It cannot accept a runtime value.
+The `sq` function converts symbolic square names (`:e4`, `:h1`, etc.) to their integer index. It is declared `inline`, so constant calls inside `defconst` and other load-time forms fold to a single integer at compile time; it also accepts runtime values.
 
 `colored-piece-index` maps a `(piece, color)` pair to an integer in `[0, 11]` by interleaving colors: white pawn → 0, black pawn → 1, white knight → 2, and so on up to black king → 11. This index is the key into every `pos-boards` array slot. `color-index` and `piece-index` compute the components separately when needed.
 

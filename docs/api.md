@@ -13,7 +13,7 @@ use them.
 
 ## Square helpers
 
-- `sq` — macro mapping a keyword like `:e4` to its square index.
+- `sq` — inline function mapping a keyword like `:e4` to its square index.
 - `file-of` — returns the file index for a square.
 - `rank-of` — returns the rank index for a square.
 

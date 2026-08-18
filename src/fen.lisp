@@ -49,7 +49,6 @@
 (defun parse-ep-square (ep-str)
   "Parse EP-STR into a square or NIL."
   (unless (string= ep-str "-")
-    ;; `sq` only takes keywords, so need a small hack here
     (sq (intern (string-upcase ep-str) :keyword))))
 
 (defun position-from-fen (fen)

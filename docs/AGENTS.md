@@ -52,7 +52,7 @@ All fundamental types are defined here as `deftype` aliases over CL integer type
 - `color` — `(member :white :black)`.
 - `piece` — `(member :pawn :knight :bishop :rook :queen :king)`.
 
-The `sq` macro converts symbolic square names (e.g. `:e4`) to their integer index at **compile time**; use it freely in constants and `defconst` forms. Do not call it with a runtime value.
+The `sq` function converts symbolic square names (e.g. `:e4`) to their integer index. It is declared `inline`, so constant calls like `(sq :e4)` fold to a single integer at compile time; it also accepts runtime values.
 
 Color and piece indices are produced by `color-index` and `piece-index`. The combined `colored-piece-index` maps a `(piece, color)` pair to `[0, 11]` and is the key into the `pos-boards` array. These functions are declared `inline`.
 
@@ -94,7 +94,7 @@ The `for … in-bitboard` iterate clause (defined in `utils.lisp`) pops bits fro
 
 `position-from-fen` is the primary entry point for constructing a position. The `with-fen-fields` macro destructures the six FEN fields from a string via `tokens`. FEN parsing is intentionally simple and does not validate the resulting position; it trusts well-formed input.
 
-The `parse-ep-square` function interns the square string as a keyword and passes it through `sq`; this is an acknowledged hack that avoids duplicating the square-index logic.
+The `parse-ep-square` function interns the square string as a keyword and passes it through `sq`.
 
 ### UCI scaffold (`uci.lisp`)
 
