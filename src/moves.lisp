@@ -5,28 +5,12 @@
 
 (declaim (inline (move-has-flag?)))
 
-(deftype move () '(unsigned-byte 16))
-;; Bit layout:
-;; 0-5: from square
-;; 6-11: to square
-;; 12-13: promotion
-;; 14-15: flags
-
-(declaim (ftype (function (move) square) move-from))
-(defun move-from (move)
-  (ldb (byte 6 0) move))
-
-(declaim (ftype (function (move) square) move-to))
-(defun move-to (move)
-  (ldb (byte 6 6) move))
-
-(declaim (ftype (function (move) piece) move-promotion))
-(defun move-promotion (move)
-  (ldb (byte 2 12) move))
-
-(declaim (ftype (function (move) fixnum) move-flags))
-(defun move-flags (move)
-  (ldb (byte 2 13) move))
+;; Types and declarations 
+(defstruct (move (:constructor make-move (from to &optional promotion flags)))
+  (from 0 :type square)
+  (to 0 :type square)
+  (promotion nil :type (or null piece))
+  (flags 0 :type (unsigned-byte 5)))
 
 (defmacro with-move ((from to promotion flags) move &body body)
   `(let ((,from      (move-from      ,move))
