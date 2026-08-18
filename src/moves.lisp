@@ -168,9 +168,9 @@
 (defmacro union-attacks (bb expr)
   "OR together EXPR evaluated for each set bit of BB. SQ is bound to each bit index."
   `(iter
-     (with acc = 0)
+     (with acc = (the bitboard 0))
      (for sq in-bitboard ,bb)
-     (setf acc (logior acc ,expr))
+     (setf acc (logior acc (the bitboard ,expr)))
      (finally (return acc))))
 
 (defun attacked-by (pos color &key (occupied (pos-occupied-squares pos)))
@@ -190,8 +190,8 @@
          (cap-e   (if (eq color :white) 9 -7))
          (cap-w   (if (eq color :white) 7 -9)))
     (logior
-     (logior (ash (logand pawns +not-file-h+) cap-e)
-             (ash (logand pawns +not-file-a+) cap-w))
+     (logior (logand (ash (logand pawns +not-file-h+) cap-e) +full-board+)
+             (logand (ash (logand pawns +not-file-a+) cap-w) +full-board+))
      (union-attacks knights (aref +knight-attacks+ sq))
      (union-attacks (logior bishops queens) (bishop-attack-mask sq occupied))
      (union-attacks (logior rooks queens)   (rook-attack-mask sq occupied))
