@@ -5,12 +5,14 @@
 
 ;; Types and declarations 
 (defstruct (move (:constructor make-move (from to &optional promotion flags)))
+  "A move between two squares, with an optional promotion piece and flag bits."
   (from 0 :type square)
   (to 0 :type square)
   (promotion nil :type (or null piece))
   (flags 0 :type (unsigned-byte 5)))
 
 (defmacro with-move ((from to promotion flags) move &body body)
+  "Destructure MOVE into FROM, TO, PROMOTION, and FLAGS bindings."
   `(let ((,from      (move-from      ,move))
          (,to        (move-to        ,move))
          (,promotion (move-promotion ,move))
@@ -35,6 +37,7 @@
 ;; Attack tables
 ;; Precompute king and knight attacks for every square.
 (defmacro direction->offset (direction)
+  "Map a compass keyword (:n, :ne, ..., :nnw) to a rank/file offset."
   `(case ,direction
     (:n 8)   (:s -8)  (:e 1)   (:w -1)
     (:ne 9)  (:nw 7)  (:se -7) (:sw -9)
@@ -50,6 +53,9 @@
      (collect (direction->offset dir))))
 
 (defmacro generate-attack-table (directions &body check-logic)
+  "Build a 64-entry table of attack bitboards for DIRECTIONS.
+   CHECK-LOGIC runs with FROM and TO bound to a square and one of its
+   candidate neighbors; the neighbor is kept when it returns true."
   `(iter
      (with table = (make-array 64 :element-type 'bitboard :initial-element 0))
      (for sq from 0 below 64)
@@ -139,18 +145,21 @@
 
 ;; Slider attack macros are anaphoric; FROM is bound by generate-major-piece-moves.
 (defmacro rook-attack-mask (square occupied)
+  "Rook attacks from SQUARE given OCCUPIED squares."
   `(logior (ray-attacks+ ,square :n ,occupied)
           (ray-attacks+ ,square :e ,occupied)
           (ray-attacks- ,square :s ,occupied)
           (ray-attacks- ,square :w ,occupied)))
 
 (defmacro bishop-attack-mask (square occupied)
+  "Bishop attacks from SQUARE given OCCUPIED squares."
   `(logior (ray-attacks+ ,square :ne ,occupied)
            (ray-attacks+ ,square :nw ,occupied)
            (ray-attacks- ,square :se ,occupied)
            (ray-attacks- ,square :sw ,occupied)))
 
 (defmacro queen-attack-mask (square occupied)
+  "Queen attacks from SQUARE given OCCUPIED squares."
   `(logior (rook-attack-mask ,square ,occupied)
 	   (bishop-attack-mask ,square ,occupied)))
 
@@ -206,8 +215,13 @@
 
 ;; Pawn move generation
 ;; These masks just set the bit "north"/"south" of a board with a set bit
-(defun shift-north (bb) (logand (ash bb  8) +full-board+))
-(defun shift-south (bb) (logand (ash bb -8) +full-board+))
+(defun shift-north (bb)
+  "Shift BB one rank toward rank 8, discarding bits off the board."
+  (logand (ash bb  8) +full-board+))
+
+(defun shift-south (bb)
+  "Shift BB one rank toward rank 1, discarding bits off the board."
+  (logand (ash bb -8) +full-board+))
 
 (defmacro with-pawn-params (side &body body)
   "Bind pawn movement parameters for `side. All shifts are from the
@@ -291,6 +305,7 @@
 (defconst +black-queenside-path+ (logior (ash 1 (sq :b8)) (ash 1 (sq :c8)) (ash 1 (sq :d8))))
 
 (defmacro with-castling-params (side &body body)
+  "Bind castling rights, path masks, and king/rook destination squares for SIDE."
   `(let ((kingside-right  (if (eq ,side :white) +white-kingside+  +black-kingside+))
          (queenside-right (if (eq ,side :white) +white-queenside+ +black-queenside+))
          (kingside-path   (if (eq ,side :white) +white-kingside-path+  +black-kingside-path+))
@@ -432,6 +447,7 @@
     (not (king-in-check-p new-pos (pos-side-to-move pos)))))
 
 (defun generate-legal-moves (pos)
+  "Generate the legal moves for the side to move in POS."
   (let ((legal-move (lambda (move) (legal-move-p pos move))))
     (delete-if-not legal-move (generate-moves pos))))
 
