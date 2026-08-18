@@ -304,15 +304,22 @@
 (defconst +black-kingside-path+  (logior (ash 1 (sq :f8)) (ash 1 (sq :g8))))
 (defconst +black-queenside-path+ (logior (ash 1 (sq :b8)) (ash 1 (sq :c8)) (ash 1 (sq :d8))))
 
+(defconst +white-king-sq+       (sq :e1))
+(defconst +black-king-sq+       (sq :e8))
+(defconst +white-kingside-sq+   (sq :g1))
+(defconst +black-kingside-sq+   (sq :g8))
+(defconst +white-queenside-sq+  (sq :c1))
+(defconst +black-queenside-sq+  (sq :c8))
+
 (defmacro with-castling-params (side &body body)
   "Bind castling rights, path masks, and king/rook destination squares for SIDE."
   `(let ((kingside-right  (if (eq ,side :white) +white-kingside+  +black-kingside+))
          (queenside-right (if (eq ,side :white) +white-queenside+ +black-queenside+))
          (kingside-path   (if (eq ,side :white) +white-kingside-path+  +black-kingside-path+))
          (queenside-path  (if (eq ,side :white) +white-queenside-path+ +black-queenside-path+))
-         (king-sq         (if (eq ,side :white) (sq :e1) (sq :e8)))
-         (kingside-sq     (if (eq ,side :white) (sq :g1) (sq :g8)))
-         (queenside-sq    (if (eq ,side :white) (sq :c1) (sq :c8))))
+         (king-sq         (if (eq ,side :white) +white-king-sq+ +black-king-sq+))
+         (kingside-sq     (if (eq ,side :white) +white-kingside-sq+ +black-kingside-sq+))
+         (queenside-sq    (if (eq ,side :white) +white-queenside-sq+ +black-queenside-sq+)))
      ,@body))
 
 (defun generate-castling-moves (position)
