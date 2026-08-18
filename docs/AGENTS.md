@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Monsoon is a Common Lisp chess library providing bitboard-based board representation, pseudo-legal and legal move generation, FEN parsing, and a full UCI engine protocol scaffold. The codebase targets SBCL 2.4.1 and is managed with qlot 1.8.3. Dependencies are `iterate`, `serapeum`, and `alexandria`.
+Monsoon is a Common Lisp chess library providing bitboard-based board representation, pseudo-legal and legal move generation, FEN parsing, and a full UCI engine protocol scaffold. The codebase targets SBCL 2.4.x and its dependencies (`iterate`, `serapeum`, `alexandria`) are resolved via quicklisp through Roswell.
 
 The library's guiding principle is **clarity and abstraction first, performance second**. When a choice must be made between the two, lean toward the more readable and well-abstracted solution. Performance is not ignored — `declaim inline`, precomputed attack tables, and typed array accesses appear throughout — but it must be justified by clarity of intent, not raw micro-optimisation instinct.
 
@@ -12,7 +12,6 @@ The library's guiding principle is **clarity and abstraction first, performance 
 
 ```
 monsoon.asd          — ASDF system definition (main + test systems)
-qlfile / qlfile.lock — qlot dependency pins
 src/
   package.lisp       — single package :monsoon with all exports
   types.lisp         — squares, bitboards, pieces, colors, castling rights
@@ -32,9 +31,13 @@ docs/
 
 ## Running tests
 
+With the project linked into a quicklisp/Roswell source location (see `README.org`), run:
+
 ```lisp
 (asdf:test-system :monsoon)
 ```
+
+or in one go from a shell: `ros run -e '(asdf:test-system :monsoon)'`.
 
 This loads `monsoon/tests` (which depends on `monsoon` and `rove`) and calls `(rove:run c)` via the `:perform` clause. All tests live in `tests/main.lisp`. There is no separate test runner script; the ASDF hook is the only supported entry point.
 

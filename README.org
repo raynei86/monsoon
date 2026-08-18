@@ -6,3 +6,28 @@ It's decently fast, with ~perft~ of depth 6 taking about 60 seconds to
 run on my laptop. That's about 3x faster than the 210 seconds I got
 with [[https://github.com/niklasf/python-chess][python chess]]. Not very scientific sure, but move generation isn't
 really a hot path anyways.
+
+* Setup
+
+Dependencies (`iterate`, `serapeum`, `alexandria`, plus `rove` for the
+test suite) are resolved from quicklisp. The project is developed with
+[[https://github.com/roswell/roswell][Roswell]].
+
+Link the project into ASDF's source location so quicklisp can find it:
+
+#+begin_src sh
+  mkdir -p ~/common-lisp
+  ln -s "$PWD" ~/common-lisp/monsoon
+#+end_src
+
+* Running tests
+
+#+begin_src sh
+  ros run -e '(asdf:test-system :monsoon)'
+#+end_src
+
+Or from a REPL:
+
+#+begin_src lisp
+  (asdf:test-system :monsoon)
+#+end_src

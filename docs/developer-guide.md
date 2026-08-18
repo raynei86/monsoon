@@ -6,7 +6,6 @@ This guide covers the internal architecture, data representations, and algorithm
 
 ```
 monsoon.asd          — ASDF system definition (main + test systems)
-qlfile / qlfile.lock — qlot dependency pins
 src/
   package.lisp       — single package :monsoon with all exports
   types.lisp         — squares, bitboards, pieces, colors, castling rights
