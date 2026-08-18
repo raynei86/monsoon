@@ -52,12 +52,11 @@ Monsoon uses a triple-redundant bitboard representation. A `position` struct hol
 
 - **`pos-boards`** — 12-element array indexed by `colored-piece-index`, one bitboard per colored piece.
 - **`pos-by-color`** — 2-element array, the aggregate occupancy for each color.
-- **`pos-by-piece`** — 6-element array, the aggregate occupancy for each piece kind regardless of color.
 - **`pos-occupied-squares`** — the union of the two color boards.
 
 The redundancy is intentional: different parts of move generation need different views, and keeping all of them in sync avoids repeated union operations in tight loops.
 
-All mutations go through `place-piece!` and `remove-piece!`, which update all four views atomically. `do-move` creates a full copy of the position via `copy-position` before mutating it, so the input position is never modified. The copy is shallow — arrays are `copy-seq`'d — but that is correct because bitboards are value types stored directly in the arrays.
+All mutations go through `place-piece!` and `remove-piece!`, which update all three views atomically. `do-move` creates a full copy of the position via `copy-position` before mutating it, so the input position is never modified. The copy is shallow — arrays are `copy-seq`'d — but that is correct because bitboards are value types stored directly in the arrays.
 
 ## Move generation
 

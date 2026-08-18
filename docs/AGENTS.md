@@ -66,7 +66,7 @@ The `position` struct is the central data type. It carries three redundant-but-c
 - `pos-by-color` — 2-element array, aggregate occupancy per color.
 - `pos-occupied-squares` — union of the two color boards.
 
-**All board mutations go through `place-piece!` and `remove-piece!`**, which keep all four views in sync. Never touch individual array slots directly outside these two functions. Both are declared `inline`.
+**All board mutations go through `place-piece!` and `remove-piece!`**, which keep all three views in sync. Never touch individual array slots directly outside these two functions. Both are declared `inline`.
 
 `do-move` is the only public way to apply a move. It calls `copy-position` first, so the input position is never mutated. The copy is shallow (arrays are `copy-seq`'d) but that is correct since bitboards are value types.
 
