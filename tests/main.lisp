@@ -179,3 +179,30 @@
       (ok (= 48 (monsoon::perft pos 1)))
       (ok (= 2039 (monsoon::perft pos 2)))
       (ok (= 97862 (monsoon::perft pos 3))))))
+
+(defun position= (a b)
+  "Return true if positions A and B have identical state."
+  (and (equalp (monsoon::pos-boards a) (monsoon::pos-boards b))
+       (equalp (monsoon::pos-by-color a) (monsoon::pos-by-color b))
+       (= (monsoon::pos-occupied-squares a) (monsoon::pos-occupied-squares b))
+       (eq (pos-side-to-move a) (pos-side-to-move b))
+       (= (pos-castling a) (pos-castling b))
+       (eql (pos-ep-square a) (pos-ep-square b))
+       (= (monsoon::pos-halfmove-clock a) (monsoon::pos-halfmove-clock b))
+       (= (monsoon::pos-fullmove-number a) (monsoon::pos-fullmove-number b))))
+
+(deftest test-make-unmake-round-trip
+  (testing "do-move! then undo-move! restores the exact position"
+    (dolist (fen (list *starting-position-fen*
+                       "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+                       "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1"
+                       "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"))
+      (let* ((moves (generate-legal-moves (position-from-fen fen))))
+        (dolist (move moves)
+          (let ((pos (position-from-fen fen))
+                (before (position-from-fen fen)))
+            (multiple-value-bind (moving captured castling ep halfmove fullmove)
+                (monsoon::do-move! pos move)
+              (ok (not (position= pos before)) "position changed after do-move!")
+              (monsoon::undo-move! pos move moving captured castling ep halfmove fullmove))
+            (ok (position= pos before) "position restored after undo-move!")))))))

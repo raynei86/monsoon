@@ -11,7 +11,7 @@ src/
   types.lisp         — squares, bitboards, pieces, colors, castling rights
   position.lisp      — position struct, board mutation, position macros
   utils.lisp         — bitboard helpers (lsb, msb) and iterate clause
-  moves.lisp         — move struct, attack tables, move generation, do-move
+  moves.lisp         — packed move type, attack tables, move generation, do-move
   fen.lisp           — FEN string parsing → position
   uci.lisp           — UCI protocol engine base class and I/O loop
 tests/
@@ -55,7 +55,7 @@ Monsoon uses a triple-redundant bitboard representation. A `position` struct hol
 
 The redundancy is intentional: different parts of move generation need different views, and keeping all of them in sync avoids repeated union operations in tight loops.
 
-All mutations go through `place-piece!` and `remove-piece!`, which update all three views atomically. `do-move` creates a full copy of the position via `copy-position` before mutating it, so the input position is never modified. The copy is shallow — arrays are `copy-seq`'d — but that is correct because bitboards are value types stored directly in the arrays.
+All mutations go through `place-piece!` and `remove-piece!`, which update all three views atomically. `do-move` copies the position via `copy-position` before mutating it, so the input position is never modified. For hot paths, `do-move!` applies a move destructively and returns the values `undo-move!` needs to restore it; the `with-move-applied` macro wraps apply/body/undo so a single position can be reused instead of copied per move.
 
 ## Move generation
 
@@ -63,7 +63,7 @@ Move generation is split into two stages: pseudo-legal generation followed by le
 
 ### Pseudo-legal generation
 
-`generate-moves` concatenates the output of six per-piece generators. Each generator uses `with-position` to bind `side`, `occupied`, `friendly`, and `enemy` from the position, then produces moves as a list of `move` structs.
+`generate-moves` concatenates the output of six per-piece generators. Each generator uses `with-position` to bind `side`, `occupied`, `friendly`, and `enemy` from the position, then produces moves as a list of packed `move` integers.
 
 **King and knight** moves are handled identically: a precomputed attack table (`+king-attacks+` and `+knight-attacks+`) is indexed by the piece's square, and the result is masked against friendly squares to exclude self-captures. The `generate-major-piece-moves` macro factors out this common pattern.
 
@@ -71,15 +71,13 @@ Move generation is split into two stages: pseudo-legal generation followed by le
 
 The attack-mask forms (`rook-attack-mask`, `bishop-attack-mask`, `queen-attack-mask`) are macros rather than functions. This is because `generate-major-piece-moves` is itself a macro that introduces a `from` binding for the current piece's square, and the attack expressions need to reference that binding. Making the attack forms macros allows them to be written as if `from` were in scope, which it is at the point of macro expansion.
 
-**Pawns** are handled entirely with bitboard shifts and masks, with no per-pawn iteration. Single pushes, double pushes, east captures, and west captures are each computed as a bitboard operation on all pawns at once. Target bitboards are then split against the promotion-rank mask to separate promotion moves from quiet moves before emitting `move` structs. En passant is handled by masking captures against a single-bit bitboard for the en passant square.
+**Pawns** are handled entirely with bitboard shifts and masks, with no per-pawn iteration. Single pushes, double pushes, east captures, and west captures are each computed as a bitboard operation on all pawns at once. Target bitboards are then split against the promotion-rank mask to separate promotion moves from quiet moves before emitting packed `move` integers. En passant is handled by masking captures against a single-bit bitboard for the en passant square.
 
 **Castling** checks the relevant rights bits and empty-path masks, then emits a king move tagged with `+move-flag-kingside+` or `+move-flag-queenside+`. The rook relocation is handled inside `do-move` when those flags are present, rather than in the generator itself.
 
 ### Legal filtering
 
-`king-in-check-p` determines whether a given color's king is attacked, without generating any opponent moves. It does this by casting attacks outward from the king's square using the same tables and ray functions used for move generation: if a pawn-attack shift from the king's square hits an opponent pawn, the king is in check from that pawn; if a knight-attack table lookup hits an opponent knight, and so on. This is the standard "reverse attack" technique.
-
-`legal-move-p` applies `do-move` to get the resulting position and then calls `king-in-check-p` on the side that just moved. `generate-legal-moves` filters the full pseudo-legal list with this predicate. This is not the most efficient approach — a proper engine would use pin detection to avoid making most of these copies — but it keeps the legality logic simple and self-contained.
+Legality is classified without making each move. `make-legality-context` computes per-position invariants once: `king-danger` (enemy attacks with the moving king removed, which both detects check and validates king destinations), the set of own pieces pinned to the king and the line each is restricted to, and an evasion mask when in check (capture the checker or block its ray). `move-legal-p` then classifies each candidate with O(1) bit tests — castling must not be out of/through/into check, king moves must not land on an attacked square, pinned pieces must stay on their pin line, and in-check moves must reach the evasion mask. Everything else is legal. `generate-legal-moves` filters the pseudo-legal list with `move-legal-p`.
 
 ## FEN parsing
 

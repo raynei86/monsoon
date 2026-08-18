@@ -17,7 +17,7 @@ src/
   types.lisp         — squares, bitboards, pieces, colors, castling rights
   position.lisp      — position struct, board mutation, position macros
   utils.lisp         — bitboard helpers (lsb, msb) and iterate clause
-  moves.lisp         — move struct, attack tables, move generation, do-move
+  moves.lisp         — packed move type, attack tables, move generation, do-move
   fen.lisp           — FEN string parsing → position
   uci.lisp           — UCI protocol engine base class and I/O loop
 tests/
@@ -71,7 +71,7 @@ The `position` struct is the central data type. It carries three redundant-but-c
 
 **All board mutations go through `place-piece!` and `remove-piece!`**, which keep all three views in sync. Never touch individual array slots directly outside these two functions. Both are declared `inline`.
 
-`do-move` is the only public way to apply a move. It calls `copy-position` first, so the input position is never mutated. The copy is shallow (arrays are `copy-seq`'d) but that is correct since bitboards are value types.
+`do-move` is the public way to apply a move: it copies the position first, so its input is never mutated. For hot paths (perft, search), `do-move!` applies a move destructively and returns the values `undo-move!` needs to restore it, and the `with-move-applied` macro wraps apply/body/undo so a single position object can be reused instead of copied per move.
 
 `with-position` is a convenience macro that binds `side`, `occupied`, `friendly`, and `enemy` from a position in one go. Use it at the top of move-generation functions rather than repeatedly accessing slots.
 
@@ -80,8 +80,8 @@ The `position` struct is the central data type. It carries three redundant-but-c
 Move generation is split into pseudo-legal generation followed by legal filtering:
 
 1. `generate-moves` — appends results from all per-piece generators.
-2. `legal-move-p` — applies `do-move` and checks `king-in-check-p` on the resulting position.
-3. `generate-legal-moves` — filters the pseudo-legal list with `legal-move-p`.
+2. `move-legal-p` — classifies each candidate against a precomputed `legality-context` (enemy attacks with the king removed, pinned pieces, and an evasion mask when in check) using O(1) bit tests, without making the move.
+3. `generate-legal-moves` — filters the pseudo-legal list with `move-legal-p`.
 
 **Precomputed tables** (`+king-attacks+`, `+knight-attacks+`, `+rays+`) are built at load time using the `generate-attack-table` and `generate-ray-table` macros. These macros are load-time tools, not runtime abstractions; do not call them from non-toplevel code.
 

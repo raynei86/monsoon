@@ -51,9 +51,9 @@ seen in `src/types.lisp`.
 
 ## Moves
 
-- `move` — struct with `from`, `to`, `promotion`, `flags`.
+- `move` — a packed fixnum encoding `from`, `to`, `promotion`, `flags`.
 - `with-move` — macro binding `from`, `to`, `promotion`, `flags`.
-- `do-move` — returns a new position after applying a move.
+- `do-move` — returns a new position after applying a move (does not mutate its input).
 - `generate-moves` — returns pseudo-legal moves for the side to move.
 - `king-in-check-p` — tests if a color is in check.
 - `legal-move-p` — true if a move does not leave the mover in check.
