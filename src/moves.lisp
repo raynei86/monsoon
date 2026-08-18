@@ -410,6 +410,8 @@
 
 (defun castling-king-path (side flags)
   "Return the squares the king must not be in check on for a castling move."
+  (declare (type color side)
+           (type (unsigned-byte 5) flags))
   (let ((kingside-p (logtest flags +move-flag-kingside+)))
     (if (eq side :white)
         (if kingside-p +white-kingside-king-path+ +white-queenside-king-path+)
