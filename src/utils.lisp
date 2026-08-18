@@ -4,6 +4,7 @@
 
 (declaim (optimize (speed 3) (safety 1)))
 (declaim (inline lsb msb))
+(declaim (ftype (function (bitboard) (integer -1 63)) lsb msb))
 
 ;; Bits related utils
 (defun lsb (bb)
