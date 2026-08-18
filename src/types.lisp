@@ -78,7 +78,9 @@
   '(member :pawn :knight :bishop :rook :queen :king))
 
 (deftype colored-piece-code ()
-  "An integer representing a piece and its color"
+  "An integer in [0, 11] representing a piece and its color.
+   The low bit is the color index (0 white, 1 black); the rest is
+   the piece index. Produced by `colored-piece-index`."
   '(unsigned-byte 4))
 
 (defun color-index (color)
@@ -98,17 +100,6 @@
   (declare (type piece piece)
 	   (type color color))
   (+ (* (piece-index piece) 2) (color-index color)))
-
-(defun decompose-colored-piece-index (index)
-  "Return the piece index and color index from INDEX."
-  (declare (type colored-piece-code index))
-  (let* ((color (logand index 1))
-         (piece (ash index -1)))
-    (values piece color)))
-(defmacro with-colored-piece-index ((piece color) index &body body)
-  `(multiple-value-bind (,piece ,color)
-       (decompose-colored-piece-index ,index)
-     ,@body))
 
 ;; Hashing and utils
 (deftype hash-key ()

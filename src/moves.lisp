@@ -34,7 +34,7 @@
 
 ;; Attack tables
 ;; Precompute king and knight attacks for every square.
-(defmacro direction-to-offset (direction)
+(defmacro direction->offset (direction)
   `(case ,direction
     (:n 8)   (:s -8)  (:e 1)   (:w -1)
     (:ne 9)  (:nw 7)  (:se -7) (:sw -9)
@@ -47,7 +47,7 @@
   "Translates compass keywords to a list of integer offsets."
   `(iter
      (for dir in ,dirs)
-     (collect (direction-to-offset dir))))
+     (collect (direction->offset dir))))
 
 (defmacro generate-attack-table (directions &body check-logic)
   `(iter
@@ -78,7 +78,7 @@
 ;; Rays and sliding pieces
 (defmacro generate-ray-table (direction)
   "Creates an attack table for rays going in that direction, ignoring attackers"
-  (let ((offset (direction-to-offset direction)))
+  (let ((offset (direction->offset direction)))
     `(iter
        (with table = (make-array 64 :element-type 'bitboard :initial-element 0))
        (for sq from 0 below 64)
@@ -206,13 +206,13 @@
 
 ;; Pawn move generation
 ;; These masks just set the bit "north"/"south" of a board with a set bit
-(defun north (bb) (logand (ash bb  8) +full-board+))
-(defun south (bb) (logand (ash bb -8) +full-board+))
+(defun shift-north (bb) (logand (ash bb  8) +full-board+))
+(defun shift-south (bb) (logand (ash bb -8) +full-board+))
 
 (defmacro with-pawn-params (side &body body)
   "Bind pawn movement parameters for `side. All shifts are from the
    perspective of the board (east = toward file H), not the pawn."
-  `(let ((push-fn     (if (eq ,side :white) #'north #'south))
+  `(let ((push-fn     (if (eq ,side :white) #'shift-north #'shift-south))
 	 (push-shift  (if (eq ,side :white)  8  -8))
 	 (cap-e-shift (if (eq ,side :white)  9  -7)) ; NE / SE
 	 (cap-w-shift (if (eq ,side :white)  7  -9)) ; NW / SW
