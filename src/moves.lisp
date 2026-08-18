@@ -170,8 +170,8 @@
      (let* ((attacks (logandc2 ,attack-expr ,friendly))
 	    (captures (logand attacks ,enemy))
 	    (quiets (logandc2 attacks ,enemy)))
-       (appending (emit-moves from captures +move-flag-capture+))
-       (appending (emit-moves from quiets)))))
+       (nconcing (emit-moves from captures +move-flag-capture+))
+       (nconcing (emit-moves from quiets)))))
 
 (defun generate-knight-moves (position)
   "Generate pseudo-legal knight moves for the side to move."
@@ -244,7 +244,7 @@
   "Emit all 4 promotion types as moves"
   `(iter
      (for target in-bitboard ,targets)
-     (appending
+     (nconcing
       (iter
 	(for promo in '(:queen :rook :bishop :knight))
 	(collect (make-move (- target ,shift) target promo ,flags))))))
@@ -277,7 +277,7 @@
              (cap-w-promo (logand    cap-w promo-rank))
              (cap-w-quiet (logandc2  cap-w promo-rank)))
 
-        (append
+        (nconc
 	 (emit-pawn-moves push1-quiet push-shift) 
          (emit-pawn-moves push2 (* 2 push-shift) +move-flag-double+)
          (emit-pawn-moves cap-e-quiet cap-e-shift +move-flag-capture+)
@@ -293,7 +293,7 @@
                   (ep-cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) ep-bb))
                   (ep-cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) ep-bb))
                   (ep-flags (logior +move-flag-capture+ +move-flag-ep+)))
-	     (append
+	     (nconc
 	      (emit-pawn-moves ep-cap-e cap-e-shift ep-flags)
 	      (emit-pawn-moves ep-cap-w cap-w-shift ep-flags)))))))))
 
@@ -402,7 +402,7 @@
 
 (defun generate-moves (position)
   "Generate all pseudo-legal moves for the side to move."
-  (append (generate-pawn-moves   position)
+  (nconc (generate-pawn-moves   position)
           (generate-knight-moves position)
           (generate-bishop-moves position)
           (generate-rook-moves   position)
