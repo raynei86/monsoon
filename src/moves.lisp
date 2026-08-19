@@ -538,7 +538,7 @@
                                 (aref +castling-rights-mask+ to))))
           ;; Halfmove clock: reset on pawn move or capture, otherwise increment.
           (setf (pos-halfmove-clock position)
-                (if (or (zerop (ash moving-cpc -1)) ; the moving piece is a pawn
+                (if (or (eq :pawn (colored-piece-code-piece moving-cpc))
                         (logtest flags +move-flag-capture+))
                     0
                     (1+ old-halfmove)))
@@ -553,7 +553,7 @@
 (defun undo-move! (position move moving-cpc captured-cpc
                    old-castling old-ep old-halfmove old-fullmove)
   "Reverse the effect of DO-MOVE! on POSITION."
-  (let* ((side (if (logbitp 0 moving-cpc) :black :white))
+  (let* ((side (colored-piece-code-color moving-cpc))
          (pawn-dir (if (eq side :white) -8 +8)))
     (with-move (from to promotion flags) move
       ;; Move the piece back from TO to FROM, reversing any promotion.

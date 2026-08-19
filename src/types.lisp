@@ -4,7 +4,8 @@
 (in-package #:monsoon)
 
 (declaim (optimize (speed 3) (safety 1)))
-(declaim (inline sq file-of rank-of color-index piece-index colored-piece-index))
+(declaim (inline sq file-of rank-of color-index piece-index colored-piece-index
+                 piece-from-index colored-piece-code-piece colored-piece-code-color))
 
 ;; Squares and board
 (deftype square ()
@@ -101,6 +102,23 @@
   (declare (type piece piece)
 	   (type color color))
   (+ (* (piece-index piece) 2) (color-index color)))
+
+(defun piece-from-index (idx)
+  "Return the piece keyword for a piece index in [0, 5]."
+  (declare (type (integer 0 5) idx))
+  (ecase idx
+    (0 :pawn) (1 :knight) (2 :bishop)
+    (3 :rook) (4 :queen)  (5 :king)))
+
+(defun colored-piece-code-piece (code)
+  "Return the piece keyword of a colored-piece-code."
+  (declare (type colored-piece-code code))
+  (piece-from-index (ash code -1)))
+
+(defun colored-piece-code-color (code)
+  "Return the color keyword of a colored-piece-code."
+  (declare (type colored-piece-code code))
+  (if (logbitp 0 code) :black :white))
 
 ;; Hashing and utils
 (deftype hash-key ()
