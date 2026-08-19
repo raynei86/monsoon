@@ -180,17 +180,17 @@
 	 (logxor ray (ray ,direction (,blocker-func blockers))))))
 
 (defun ray-attacks+ (square direction occupied)
+  "Attacks along a positive ray from square, cut off at first obstacle"
   (declare (type square square)
 	   (type keyword direction)
 	   (type bitboard occupied))
-  "Attacks along a positive ray from square, cut off at first obstacle"
   (ray-attacks square direction occupied lsb))
 
 (defun ray-attacks- (square direction occupied)
+  "Attacks along a negative ray from square, cut off at first obstacle"
   (declare (type square square)
 	   (type keyword direction)
 	   (type bitboard occupied))
-  "Attacks along a negative ray from square, cut off at first obstacle"
   (ray-attacks square direction occupied msb))
 
 ;; Slider attack macros are anaphoric; FROM is bound by generate-major-piece-moves.

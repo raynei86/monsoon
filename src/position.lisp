@@ -36,8 +36,8 @@
   (logbitp square (pos-occupied-squares position)))
 
 (defun color-at (position square)
-  (declare (type square square))
   "Returns the color of the piece on `square`. Assumes the square is occupied."
+  (declare (type square square))
   (if (logbitp square (aref (pos-by-color position) 0))
       :white
       (if (logbitp square (aref (pos-by-color position) 1))
@@ -45,8 +45,8 @@
 	  nil)))
 
 (defun piece-at (position square)
-  (declare (type square square))
   "Returns the piece type on `square`. Assumes the square is occupied."
+  (declare (type square square))
   (let* ((color (color-at position square))
          (boards (pos-boards position)))
     (cond
