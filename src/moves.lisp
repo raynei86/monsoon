@@ -438,42 +438,66 @@
 
 
 ;; Castling move generation
-(defconst +white-kingside-path+  (logior (ash 1 (sq :f1)) (ash 1 (sq :g1))))
-(defconst +white-queenside-path+ (logior (ash 1 (sq :b1)) (ash 1 (sq :c1)) (ash 1 (sq :d1))))
-(defconst +black-kingside-path+  (logior (ash 1 (sq :f8)) (ash 1 (sq :g8))))
-(defconst +black-queenside-path+ (logior (ash 1 (sq :b8)) (ash 1 (sq :c8)) (ash 1 (sq :d8))))
+;; One named square constant per side.
+(defconst +white-king-sq+              (sq :e1))
+(defconst +white-kingside-sq+          (sq :g1))
+(defconst +white-queenside-sq+         (sq :c1))
+(defconst +white-kingside-rook-from+   (sq :h1))
+(defconst +white-kingside-rook-to+     (sq :f1))
+(defconst +white-queenside-rook-from+  (sq :a1))
+(defconst +white-queenside-rook-to+    (sq :d1))
+(defconst +white-queenside-rook-passage+ (sq :b1))
 
-(defconst +white-king-sq+       (sq :e1))
-(defconst +black-king-sq+       (sq :e8))
-(defconst +white-kingside-sq+   (sq :g1))
-(defconst +black-kingside-sq+   (sq :g8))
-(defconst +white-queenside-sq+  (sq :c1))
-(defconst +black-queenside-sq+  (sq :c8))
+(defconst +black-king-sq+              (sq :e8))
+(defconst +black-kingside-sq+          (sq :g8))
+(defconst +black-queenside-sq+         (sq :c8))
+(defconst +black-kingside-rook-from+   (sq :h8))
+(defconst +black-kingside-rook-to+     (sq :f8))
+(defconst +black-queenside-rook-from+  (sq :a8))
+(defconst +black-queenside-rook-to+    (sq :d8))
+(defconst +black-queenside-rook-passage+ (sq :b8))
 
-;; Castling: the squares the king must not be in check on (transit + destination).
-(defconst +white-kingside-king-path+  (logior (ash 1 (sq :f1)) (ash 1 (sq :g1))))
-(defconst +white-queenside-king-path+ (logior (ash 1 (sq :d1)) (ash 1 (sq :c1))))
-(defconst +black-kingside-king-path+  (logior (ash 1 (sq :f8)) (ash 1 (sq :g8))))
-(defconst +black-queenside-king-path+ (logior (ash 1 (sq :d8)) (ash 1 (sq :c8))))
+;; Squares that must be empty for the rook and king to pass through.
+(defconst +white-kingside-empty-squares+  (logior (ash 1 +white-kingside-rook-to+) (ash 1 +white-kingside-sq+)))
+(defconst +white-queenside-empty-squares+ (logior (ash 1 +white-queenside-rook-passage+) (ash 1 +white-queenside-rook-to+) (ash 1 +white-queenside-sq+)))
+(defconst +black-kingside-empty-squares+  (logior (ash 1 +black-kingside-rook-to+) (ash 1 +black-kingside-sq+)))
+(defconst +black-queenside-empty-squares+ (logior (ash 1 +black-queenside-rook-passage+) (ash 1 +black-queenside-rook-to+) (ash 1 +black-queenside-sq+)))
 
-(defun castling-king-path (side flags)
+;; Squares the king must not be in check on (its transit square + destination).
+(defconst +white-kingside-safe-squares+  (logior (ash 1 +white-kingside-rook-to+) (ash 1 +white-kingside-sq+)))
+(defconst +white-queenside-safe-squares+ (logior (ash 1 +white-queenside-rook-to+) (ash 1 +white-queenside-sq+)))
+(defconst +black-kingside-safe-squares+  (logior (ash 1 +black-kingside-rook-to+) (ash 1 +black-kingside-sq+)))
+(defconst +black-queenside-safe-squares+ (logior (ash 1 +black-queenside-rook-to+) (ash 1 +black-queenside-sq+)))
+
+(defun castling-safe-squares (side flags)
   "Return the squares the king must not be in check on for a castling move."
   (declare (type color side)
            (type (unsigned-byte 5) flags))
   (let ((kingside-p (logtest flags +move-flag-kingside+)))
     (if (eq side :white)
-        (if kingside-p +white-kingside-king-path+ +white-queenside-king-path+)
-        (if kingside-p +black-kingside-king-path+ +black-queenside-king-path+))))
+        (if kingside-p +white-kingside-safe-squares+ +white-queenside-safe-squares+)
+        (if kingside-p +black-kingside-safe-squares+ +black-queenside-safe-squares+))))
 
 (defmacro with-castling-params (side &body body)
-  "Bind castling rights, path masks, and king/rook destination squares for SIDE."
+  "Bind the castling rights, empty squares, and destination/rook squares for SIDE.
+   Empty squares must be clear for the rook and king to pass; safe squares are
+   the squares the king must not be in check on."
   `(let ((kingside-right  (if (eq ,side :white) +white-kingside+  +black-kingside+))
          (queenside-right (if (eq ,side :white) +white-queenside+ +black-queenside+))
-         (kingside-path   (if (eq ,side :white) +white-kingside-path+  +black-kingside-path+))
-         (queenside-path  (if (eq ,side :white) +white-queenside-path+ +black-queenside-path+))
+         (kingside-empty-squares  (if (eq ,side :white) +white-kingside-empty-squares+  +black-kingside-empty-squares+))
+         (queenside-empty-squares (if (eq ,side :white) +white-queenside-empty-squares+ +black-queenside-empty-squares+))
          (king-sq         (if (eq ,side :white) +white-king-sq+ +black-king-sq+))
          (kingside-sq     (if (eq ,side :white) +white-kingside-sq+ +black-kingside-sq+))
-         (queenside-sq    (if (eq ,side :white) +white-queenside-sq+ +black-queenside-sq+)))
+         (queenside-sq    (if (eq ,side :white) +white-queenside-sq+ +black-queenside-sq+))
+         (kingside-rook-from  (if (eq ,side :white) +white-kingside-rook-from+  +black-kingside-rook-from+))
+         (kingside-rook-to    (if (eq ,side :white) +white-kingside-rook-to+    +black-kingside-rook-to+))
+         (queenside-rook-from (if (eq ,side :white) +white-queenside-rook-from+ +black-queenside-rook-from+))
+         (queenside-rook-to   (if (eq ,side :white) +white-queenside-rook-to+   +black-queenside-rook-to+)))
+     (declare (ignorable kingside-right queenside-right
+                         kingside-empty-squares queenside-empty-squares
+                         king-sq kingside-sq queenside-sq
+                         kingside-rook-from kingside-rook-to
+                         queenside-rook-from queenside-rook-to))
      ,@body))
 
 (defun generate-castling-moves (position)
@@ -483,10 +507,10 @@
       (let ((rights (pos-castling position))
 	    (moves '()))
 	(when (and (logtest rights kingside-right)
-		   (not (logtest occupied kingside-path)))
+		   (not (logtest occupied kingside-empty-squares)))
 	  (push (make-move king-sq kingside-sq nil +move-flag-kingside+) moves))
 	(when (and (logtest rights queenside-right)
-		   (not (logtest occupied queenside-path)))
+		   (not (logtest occupied queenside-empty-squares)))
 	  (push (make-move king-sq queenside-sq nil +move-flag-queenside+) moves))
 	moves))))
 
@@ -521,13 +545,14 @@
             (place-piece! position to (colored-piece-index promotion side)))
           ;; Castling and relocate rook
           (let ((rook-cpc (colored-piece-index :rook side)))
-            (cond
-              ((logtest flags +move-flag-kingside+)
-               (remove-piece! position (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc)
-               (place-piece!  position (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc))
-              ((logtest flags +move-flag-queenside+)
-               (remove-piece! position (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc)
-               (place-piece!  position (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc))))
+            (with-castling-params side
+              (cond
+                ((logtest flags +move-flag-kingside+)
+                 (remove-piece! position kingside-rook-from rook-cpc)
+                 (place-piece!  position kingside-rook-to rook-cpc))
+                ((logtest flags +move-flag-queenside+)
+                 (remove-piece! position queenside-rook-from rook-cpc)
+                 (place-piece!  position queenside-rook-to rook-cpc)))))
           ;; Set the new en passant square on a double pawn push.
           (setf (pos-ep-square position)
                 (when (logtest flags +move-flag-double+) (+ to pawn-dir)))
@@ -569,13 +594,14 @@
                       captured-cpc))
       ;; Restore the rook relocated by castling.
       (let ((rook-cpc (colored-piece-index :rook side)))
-        (cond
-          ((logtest flags +move-flag-kingside+)
-           (remove-piece! position (if (eq side :white) (sq :f1) (sq :f8)) rook-cpc)
-           (place-piece!  position (if (eq side :white) (sq :h1) (sq :h8)) rook-cpc))
-          ((logtest flags +move-flag-queenside+)
-           (remove-piece! position (if (eq side :white) (sq :d1) (sq :d8)) rook-cpc)
-           (place-piece!  position (if (eq side :white) (sq :a1) (sq :a8)) rook-cpc))))
+        (with-castling-params side
+          (cond
+            ((logtest flags +move-flag-kingside+)
+             (remove-piece! position kingside-rook-to rook-cpc)
+             (place-piece!  position kingside-rook-from rook-cpc))
+            ((logtest flags +move-flag-queenside+)
+             (remove-piece! position queenside-rook-to rook-cpc)
+             (place-piece!  position queenside-rook-from rook-cpc)))))
       ;; Restore scalar state.
       (setf (pos-castling position) old-castling
             (pos-ep-square position) old-ep
@@ -705,7 +731,7 @@
         ((logtest flags (logior +move-flag-kingside+ +move-flag-queenside+))
          (and (not (legality-context-in-check-p ctx))
               (not (logtest (attacked-by pos (opponent side))
-                            (castling-king-path side flags)))))
+                            (castling-safe-squares side flags)))))
         ;; King moves: destination must not be attacked. Enemy attacks were
         ;; computed with our king removed, so retreats onto a vacated line
         ;; (which the moving king would otherwise block) are caught.
