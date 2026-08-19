@@ -2,10 +2,9 @@
 
 My renewed attempt at writing a chess library.
 
-It's decently fast, with ~perft~ of depth 6 taking about 60 seconds to
-run on my laptop. That's about 3x faster than the 210 seconds I got
-with [[https://github.com/niklasf/python-chess][python chess]]. Not very scientific sure, but move generation isn't
-really a hot path anyways.
+It's decently fast, with ~perft~ of depth 6 taking about 8 seconds to
+run on my laptop. That's about 26x faster than the 210 seconds I got
+with [[https://github.com/niklasf/python-chess][python chess]], and almost on par with my [[https://github.com/raynei86/nimsoon][Nim chess library]].
 
 * Setup
 
