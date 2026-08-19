@@ -245,6 +245,15 @@
      (union-attacks (logior rooks queens)   (rook-attack-mask sq occupied))
      (union-attacks king (aref +king-attacks+ sq)))))
 
+(defun attacked-by-kingless (pos color)
+  "Return a bitboard of every square COLOR's opponent attacks, computed with
+   COLOR's king removed from occupancy. A king may move to any square outside
+   this set, and COLOR is in check exactly when its king square is in it."
+  (declare (type position pos) (type color color))
+  (let ((king-bb (aref (pos-boards pos) (colored-piece-index :king color))))
+    (attacked-by pos (opponent color)
+                 :occupied (logandc2 (pos-occupied-squares pos) king-bb))))
+
 (defconst +between+
   ;; between[a][b] = squares strictly between a and b when they are aligned
   ;; on a file, rank, or diagonal; 0 otherwise. Used to find block squares.
@@ -702,12 +711,9 @@
 (defun make-legality-context (pos)
   "Build the legality invariants for POS's side to move."
   (let* ((side (pos-side-to-move pos))
-         (opp (opponent side))
          (king-bb (aref (pos-boards pos) (colored-piece-index :king side)))
          (king-sq (lsb king-bb))
-         (occupied (pos-occupied-squares pos))
-         (king-danger (attacked-by pos opp
-                                   :occupied (logandc2 occupied king-bb)))
+         (king-danger (attacked-by-kingless pos side))
          (in-check-p (logbitp king-sq king-danger)))
     (multiple-value-bind (pinned pin-lines)
         (pinned-pieces pos side)
