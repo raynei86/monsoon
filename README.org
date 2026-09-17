@@ -17,7 +17,7 @@ Link the project into ASDF's source location so quicklisp can find it:
 #+begin_src sh
   mkdir -p ~/common-lisp
   ln -s "$PWD" ~/common-lisp/monsoon
-#+end_src
+#+end_src 
 
 * Running tests
 
