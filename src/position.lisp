@@ -100,7 +100,8 @@
 
 (defmacro with-position ((side occupied friendly enemy) position &body body)
   "Binds some necessary information about the position"
-  (with-gensyms (pos color-idx)
+  (let ((pos (gensym "POS-"))
+        (color-idx (gensym "COLOR-IDX-")))
     `(let* ((,pos        ,position)
             (,side     (pos-side-to-move ,pos))
             (,color-idx      (color-index ,side))

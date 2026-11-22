@@ -2,7 +2,7 @@
   :version "0.0.1"
   :author "Lihui Zhang"
   :license "MIT"
-  :depends-on ("iterate" "serapeum" "alexandria")
+  :depends-on ("iterate" "serapeum")
   :components ((:module "src"
                 :components
                 ((:file "package")

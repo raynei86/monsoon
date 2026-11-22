@@ -2,7 +2,6 @@
   (:use :cl :iterate)
   (:shadow :position)
   (:import-from :serapeum #:defconst #:tokens)
-  (:import-from :alexandria #:with-gensyms)
 
   (:export
    #:square
