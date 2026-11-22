@@ -8,7 +8,7 @@ with [[https://github.com/niklasf/python-chess][python chess]], and almost on pa
 
 * Setup
 
-Dependencies (`iterate`, `serapeum`, `alexandria`, plus `rove` for the
+Dependencies (`serapeum`, plus `rove` for the
 test suite) are resolved from quicklisp. The project is developed with
 [[https://github.com/roswell/roswell][Roswell]].
 
@@ -30,3 +30,8 @@ Or from a REPL:
 #+begin_src lisp
   (asdf:test-system :monsoon)
 #+end_src
+
+* AI Statement
+This project was created with the assistance of AI. Most of the
+boilerplate and all the tests are written by AI. The code and design
+is by me.
