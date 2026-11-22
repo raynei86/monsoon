@@ -28,7 +28,10 @@
   (ep-square    nil   :type (or null square))
   (halfmove-clock 0   :type (unsigned-byte 7))
   (fullmove-number 1   :type fixnum)
-  (hash         0   :type hash-key))  ; Zobrist hash not implemented yet, keep it for now
+  ;; Reserved for Zobrist hashing (not implemented yet).
+  (hash         0   :type hash-key))
+
+; Zobrist hash not implemented yet, keep it for now
 
 (defun occupied-p (position square)
   "Return true if SQUARE is occupied in POSITION."
@@ -126,3 +129,120 @@
     :halfmove-clock   (pos-halfmove-clock pos)
     :fullmove-number  (pos-fullmove-number pos)
     :hash             (pos-hash pos)))
+
+(defun do-move! (position move)
+  "Apply MOVE to POSITION in place.
+   Returns (values MOVING-CPC CAPTURED-CPC OLD-CASTLING OLD-EP OLD-HALFMOVE
+   OLD-FULLMOVE), the values UNDO-MOVE! needs to restore POSITION."
+  (let* ((side (pos-side-to-move position))
+         (opp (opponent side))
+         (pawn-dir (if (eq side :white) -8 +8))
+         (old-castling (pos-castling position))
+         (old-ep (pos-ep-square position))
+         (old-halfmove (pos-halfmove-clock position))
+         (old-fullmove (pos-fullmove-number position)))
+    (with-move (from to promotion flags) move
+      (let ((captured-cpc
+              (when (logtest flags +move-flag-capture+)
+                (if (logtest flags +move-flag-ep+)
+                    (colored-piece-index :pawn opp)
+                    (colored-piece-index (piece-at position to) opp)))))
+        (when captured-cpc
+          (remove-piece! position
+                         (if (logtest flags +move-flag-ep+) (+ to pawn-dir) to)
+                         captured-cpc))
+        (let ((moving-cpc (colored-piece-index (piece-at position from) side)))
+          (remove-piece! position from moving-cpc)
+          (place-piece! position to moving-cpc)
+          ;; If promotion just replace over it
+          (when promotion
+            (remove-piece! position to moving-cpc)
+            (place-piece! position to (colored-piece-index promotion side)))
+          ;; Castling and relocate rook
+          (let ((rook-cpc (colored-piece-index :rook side)))
+            (with-castling-params side
+              (cond
+                ((logtest flags +move-flag-kingside+)
+                 (remove-piece! position kingside-rook-from rook-cpc)
+                 (place-piece!  position kingside-rook-to rook-cpc))
+                ((logtest flags +move-flag-queenside+)
+                 (remove-piece! position queenside-rook-from rook-cpc)
+                 (place-piece!  position queenside-rook-to rook-cpc)))))
+          ;; Set the new en passant square on a double pawn push.
+          (setf (pos-ep-square position)
+                (when (logtest flags +move-flag-double+) (+ to pawn-dir)))
+          ;; Update castling rights.
+          (setf (pos-castling position)
+                (logand old-castling
+                        (logand (aref +castling-rights-mask+ from)
+                                (aref +castling-rights-mask+ to))))
+          ;; Halfmove clock: reset on pawn move or capture, otherwise increment.
+          (setf (pos-halfmove-clock position)
+                (if (or (eq :pawn (colored-piece-code-piece moving-cpc))
+                        (logtest flags +move-flag-capture+))
+                    0
+                    (1+ old-halfmove)))
+          ;; Fullmove number increments after black's reply.
+          (when (eq side :black)
+            (incf (pos-fullmove-number position)))
+          ;; Flip the side to move.
+          (setf (pos-side-to-move position) opp)
+          (values moving-cpc captured-cpc old-castling old-ep
+                  old-halfmove old-fullmove))))))
+
+(defun undo-move! (position move moving-cpc captured-cpc
+                   old-castling old-ep old-halfmove old-fullmove)
+  "Reverse the effect of DO-MOVE! on POSITION."
+  (let* ((side (colored-piece-code-color moving-cpc))
+         (pawn-dir (if (eq side :white) -8 +8)))
+    (with-move (from to promotion flags) move
+      ;; Move the piece back from TO to FROM, reversing any promotion.
+      (remove-piece! position to
+                     (if promotion
+                         (colored-piece-index promotion side)
+                         moving-cpc))
+      (place-piece! position from moving-cpc)
+      ;; Restore any captured piece.
+      (when captured-cpc
+        (place-piece! position
+                      (if (logtest flags +move-flag-ep+) (+ to pawn-dir) to)
+                      captured-cpc))
+      ;; Restore the rook relocated by castling.
+      (let ((rook-cpc (colored-piece-index :rook side)))
+        (with-castling-params side
+          (cond
+            ((logtest flags +move-flag-kingside+)
+             (remove-piece! position kingside-rook-to rook-cpc)
+             (place-piece!  position kingside-rook-from rook-cpc))
+            ((logtest flags +move-flag-queenside+)
+             (remove-piece! position queenside-rook-to rook-cpc)
+             (place-piece!  position queenside-rook-from rook-cpc)))))
+      ;; Restore scalar state.
+      (setf (pos-castling position) old-castling
+            (pos-ep-square position) old-ep
+            (pos-halfmove-clock position) old-halfmove
+            (pos-fullmove-number position) old-fullmove
+            (pos-side-to-move position) side))))
+
+(defmacro with-move-applied ((position move) &body body)
+  "Apply MOVE to POSITION in place, run BODY, then undo.
+   POSITION is restored on exit, including non-local exits."
+  (let ((m (gensym "M-"))
+        (moving (gensym "MOVING-"))
+        (captured (gensym "CAPTURED-"))
+        (castling (gensym "CASTLING-"))
+        (ep (gensym "EP-"))
+        (halfmove (gensym "HALFMOVE-"))
+        (fullmove (gensym "FULLMOVE-")))
+    `(let ((,m ,move))
+       (multiple-value-bind (,moving ,captured ,castling ,ep ,halfmove ,fullmove)
+           (do-move! ,position ,m)
+         (unwind-protect
+              (progn ,@body)
+           (undo-move! ,position ,m ,moving ,captured ,castling ,ep ,halfmove ,fullmove))))))
+
+(defun do-move (position move)
+  "Apply MOVE to POSITION and return the resulting position (a fresh copy)."
+  (let ((new-pos (copy-position position)))
+    (do-move! new-pos move)
+    new-pos))

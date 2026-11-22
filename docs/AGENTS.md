@@ -14,10 +14,12 @@ The library's guiding principle is **clarity and abstraction first, performance 
 monsoon.asd          — ASDF system definition (main + test systems)
 src/
   package.lisp       — single package :monsoon with all exports
-  types.lisp         — squares, bitboards, pieces, colors, castling rights
-  position.lisp      — position struct, board mutation, position macros
+  types.lisp         — squares, bitboards, pieces, colors, castling rights, packed move type
+  castling.lisp      — castling squares, paths, and per-side parameters
+  position.lisp      — position struct, board mutation, make/unmake, position macros
   utils.lisp         — bitboard helpers (lsb, msb) and the do-bitboard macro
-  moves.lisp         — packed move type, attack tables, move generation, do-move
+  attacks.lisp       — attack tables, ray math, attacked squares, checks, pins
+  movegen.lisp       — move generation, legality classification, perft
   fen.lisp           — FEN string parsing → position
   uci.lisp           — UCI protocol engine base class and I/O loop
 tests/
@@ -76,15 +78,18 @@ The `position` struct is the central data type. It carries three redundant-but-c
 
 `with-position` is a convenience macro that binds `side`, `occupied`, `friendly`, and `enemy` from a position in one go. Use it at the top of move-generation functions rather than repeatedly accessing slots.
 
-### Move generation (`moves.lisp`)
+### Move generation (`attacks.lisp`, `movegen.lisp`)
 
-Move generation is split into pseudo-legal generation followed by legal filtering:
+The packed `move` representation lives in `types.lisp`; castling geometry in
+`castling.lisp`; attack tables, ray math, and attack queries in `attacks.lisp`;
+the generators and legality layer in `movegen.lisp`. Move generation is split
+into pseudo-legal generation followed by legal filtering:
 
 1. `generate-moves` — appends results from all per-piece generators.
 2. `move-legal-p` — classifies each candidate against a precomputed `legality-context` (enemy attacks with the king removed, pinned pieces, and an evasion mask when in check) using O(1) bit tests, without making the move.
 3. `generate-legal-moves` — filters the pseudo-legal list with `move-legal-p`.
 
-**Precomputed tables** (`+king-attacks+`, `+knight-attacks+`, `+rays+`) are built at load time using the `generate-attack-table` and `generate-ray-table` macros. These macros are load-time tools, not runtime abstractions; do not call them from non-toplevel code.
+**Precomputed tables** (`+king-attacks+`, `+knight-attacks+`, `+rays+`) are built at load time using the `build-attack-table` and `build-ray-table` macros. These macros are load-time tools, not runtime abstractions; do not call them from non-toplevel code.
 
 Sliding piece attacks use the classical positive/negative ray technique. `ray-attacks+` uses `lsb` (lowest set bit) to find the first blocker along a positive ray; `ray-attacks-` uses `msb`. The attack-mask macros (`rook-attack-mask`, `bishop-attack-mask`, `queen-attack-mask`) are macros rather than functions because they capture the anaphoric `from` variable injected by `generate-major-piece-moves`. Be careful when reading or modifying these: the macro expansion is context-dependent.
 
@@ -142,15 +147,28 @@ The `parse-ep-square` function interns the square string as a keyword and passes
 - Do not shadow or redefine `position` outside the test package (where `:shadow :cl:position` is already noted as a necessary evil for the `:use :monsoon` import).
 - Do not use `with-gensyms` in new code unless the macro truly needs hygiene protection; prefer readable generated names when the context makes shadowing impossible anyway.
 
+**Macro taxonomy:** `with-…` establishes bindings or state and unwinds it
+(`with-position`, `with-move`, `with-square`, `with-fen-fields`,
+`with-move-applied`); `build-…` is load-time table construction
+(`build-attack-table`, `build-ray-table`); `generate-…` is runtime move
+generation (`generate-moves`, `generate-rook-moves`). Do not use `generate-`
+for load-time or codegen helpers.
+
 **Performance annotations:**
 
 `(declaim (inline …))` is used for small, frequently-called functions (`lsb`, `msb`, `occupied-p`, `color-at`, `piece-at`, `occupant-at`, `place-piece!`, `remove-piece!`, `opponent`, and the index functions in `types.lisp`). Add `inline` declarations conservatively and only where profiling or clear reasoning justifies it. `(declare (type …))` annotations in hot functions are welcome and help SBCL generate better code, but they are not required on every function.
+
+**Cross-file interface declarations:** hot-path functions called from another
+source file must carry `ftype` declarations when they return bitboards (see
+the interface block at the end of `attacks.lisp`). A compilation-unit boundary
+loses the inferred return type at the FASL edge, and callers silently fall back
+to generic, allocating arithmetic.
 
 ---
 
 ## Extending the library
 
-**Adding a new piece or move type:** Define any new bitboard constants in `types.lisp`. Add generation logic in `moves.lisp` following the pattern of the existing per-piece functions. Wire it into `generate-moves`. Add `+move-flag-*` constants if new flag bits are needed; the flags field is `(unsigned-byte 5)` so five bits are currently available.
+**Adding a new piece or move type:** Define any new bitboard constants in `types.lisp`. Add generation logic in `movegen.lisp` following the pattern of the existing per-piece functions. Wire it into `generate-moves`. Add `+move-flag-*` constants in `types.lisp` if new flag bits are needed; the flags field is `(unsigned-byte 5)` so five bits are currently available.
 
 **Implementing a search engine:** Subclass `uci-engine`, override `uci-go` to run search and return a move, and optionally override the lifecycle hooks. `generate-legal-moves` is your starting point for enumerating moves. Do not modify the base class to add engine-specific state; keep it in the subclass.
 

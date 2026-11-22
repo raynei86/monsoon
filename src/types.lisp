@@ -123,3 +123,81 @@
 ;; Hashing and utils
 (deftype hash-key ()
   '(unsigned-byte 64))
+
+;; Move representation
+;; A move is a single fixnum packing from/to/promotion/flags:
+;;   bits 0..5   from square
+;;   bits 6..11  to square
+;;   bits 12..14 promotion code (0 = none, 1 = queen, 2 = rook, 3 = bishop, 4 = knight)
+;;   bits 15..19 flags
+(defconstant +move-from-offset+         0)
+
+(defconstant +move-to-offset+           6)
+
+(defconstant +move-promotion-offset+    12)
+
+(defconstant +move-flags-offset+        15)
+
+(deftype move () '(unsigned-byte 20))
+
+(declaim (inline move-from move-to move-promotion move-flags make-move
+                 promotion-code code-to-promotion))
+
+(defun promotion-code (promotion)
+  "Encode a promotion piece (or NIL) as the 3-bit field value."
+  (case promotion
+    ((nil) 0) (:queen 1) (:rook 2) (:bishop 3) (:knight 4)))
+
+(defun code-to-promotion (code)
+  "Decode a 3-bit promotion field value into a piece keyword or NIL."
+  (case code
+    (0 nil) (1 :queen) (2 :rook) (3 :bishop) (4 :knight)))
+
+(defun move-from (move)
+  "The origin square of MOVE."
+  (declare (type move move))
+  (ldb (byte 6 +move-from-offset+) move))
+
+(defun move-to (move)
+  "The destination square of MOVE."
+  (declare (type move move))
+  (ldb (byte 6 +move-to-offset+) move))
+
+(defun move-promotion (move)
+  "The promotion piece of MOVE, or NIL."
+  (declare (type move move))
+  (code-to-promotion (ldb (byte 3 +move-promotion-offset+) move)))
+
+(defun move-flags (move)
+  "The flag bits of MOVE."
+  (declare (type move move))
+  (ldb (byte 5 +move-flags-offset+) move))
+
+(defun make-move (from to &optional promotion flags)
+  "Pack FROM, TO, PROMOTION, and FLAGS into a move."
+  (declare (type square from to)
+           (type (or null piece) promotion)
+           (type (or null (unsigned-byte 5)) flags))
+  (logior from
+          (ash to +move-to-offset+)
+          (ash (promotion-code promotion) +move-promotion-offset+)
+          (ash (or flags 0) +move-flags-offset+)))
+
+(defmacro with-move ((from to promotion flags) move &body body)
+  "Destructure MOVE into FROM, TO, PROMOTION, and FLAGS bindings."
+  `(let ((,from      (move-from      ,move))
+         (,to        (move-to        ,move))
+         (,promotion (move-promotion ,move))
+         (,flags     (move-flags     ,move)))
+     (declare (ignorable ,flags))
+     ,@body))
+
+(defconst +move-flag-capture+   #b00001)
+
+(defconst +move-flag-double+    #b00010)
+
+(defconst +move-flag-ep+        #b00100)
+
+(defconst +move-flag-kingside+  #b01000)
+
+(defconst +move-flag-queenside+ #b10000)

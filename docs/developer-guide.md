@@ -8,10 +8,12 @@ This guide covers the internal architecture, data representations, and algorithm
 monsoon.asd          — ASDF system definition (main + test systems)
 src/
   package.lisp       — single package :monsoon with all exports
-  types.lisp         — squares, bitboards, pieces, colors, castling rights
-  position.lisp      — position struct, board mutation, position macros
+  types.lisp         — squares, bitboards, pieces, colors, castling rights, packed move type
+  castling.lisp      — castling squares, paths, and per-side parameters
+  position.lisp      — position struct, board mutation, make/unmake, position macros
   utils.lisp         — bitboard helpers (lsb, msb) and the do-bitboard macro
-  moves.lisp         — packed move type, attack tables, move generation, do-move
+  attacks.lisp       — attack tables, ray math, attacked squares, checks, pins
+  movegen.lisp       — move generation, legality classification, perft
   fen.lisp           — FEN string parsing → position
   uci.lisp           — UCI protocol engine base class and I/O loop
 tests/
@@ -34,6 +36,7 @@ All fundamental types are defined as `deftype` aliases over CL integer types, ke
 | `color` | `(member :white :black)` | Side |
 | `piece` | `(member :pawn … :king)` | Piece kind |
 | `colored-piece-code` | `(unsigned-byte 4)` | Combined piece+color index |
+| `move` | `(unsigned-byte 20)` | Packed from/to/promotion/flags |
 
 - 12 colored-piece bitboards (`pos-boards`): one per piece kind and color.
 - 2 color bitboards (`pos-by-color`): aggregate by color.
@@ -60,7 +63,7 @@ All mutations go through `place-piece!` and `remove-piece!`, which update all th
 
 ## Move generation
 
-Move generation is split into two stages: pseudo-legal generation followed by legal filtering.
+Move generation is split into two stages: pseudo-legal generation followed by legal filtering. The packed `move` representation lives in `types.lisp`, castling geometry in `castling.lisp`, attack tables and queries in `attacks.lisp`, and the generators and legality layer in `movegen.lisp`.
 
 ### Pseudo-legal generation
 
@@ -82,7 +85,7 @@ Legality is classified without making each move. `make-legality-context` compute
 
 ## FEN parsing
 
-`position-from-fen` is the primary constructor for positions. The `with-fen-fields` macro destructures the six space-separated FEN fields from the input string using `tokens`. Each field is then parsed by a dedicated helper: `parse-placement!` walks the piece-placement string and calls `place-piece!` for each piece character it encounters; `parse-castling` accumulates the rights bits; `parse-ep-square` converts the algebraic square string to an index by interning it as a keyword and passing it through `sq`.
+`position-from-fen` is the primary constructor for positions. The `with-fen-fields` macro destructures the six space-separated FEN fields from the input string using `tokens`. Each field is then parsed by a dedicated helper: `parse-placement` walks the piece-placement string and calls `place-piece!` for each piece character it encounters; `parse-castling` accumulates the rights bits; `parse-ep-square` converts the algebraic square string to an index by interning it as a keyword and passing it through `sq`.
 
 FEN parsing does not validate the resulting position. It trusts well-formed input.
 
@@ -112,7 +115,7 @@ Engine behaviour is customised by overriding generic functions:
 
 ## Extending the library
 
-**Adding a new move flag:** the `flags` slot of `move` is `(unsigned-byte 5)`, so five bits are available. Define a new `+move-flag-*` constant in `moves.lisp`, handle it in `do-move`, and emit it from the appropriate generator.
+**Adding a new move flag:** the `flags` slot of `move` is `(unsigned-byte 5)`, so five bits are available. Define a new `+move-flag-*` constant in `types.lisp`, handle it in `do-move`, and emit it from the appropriate generator.
 
 **Implementing a search engine:** subclass `uci-engine` and override `uci-go`. `generate-legal-moves` is the starting point for enumerating candidates. Keep all engine-specific state in the subclass slots.
 

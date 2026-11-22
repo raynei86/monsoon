@@ -7,11 +7,13 @@
                 :components
                 ((:file "package")
                  (:file "types")
-                 (:file "position" :depends-on ("types"))
+                 (:file "castling" :depends-on ("types"))
+                 (:file "position" :depends-on ("types" "castling"))
                  (:file "utils" :depends-on ("types"))
-                 (:file "moves" :depends-on ("utils" "types" "position"))
+                 (:file "attacks" :depends-on ("types" "position" "utils"))
+                 (:file "movegen" :depends-on ("types" "position" "utils" "attacks" "castling"))
                  (:file "fen" :depends-on ("position" "types"))
-                 (:file "uci" :depends-on ("fen" "moves")))))
+                 (:file "uci" :depends-on ("fen" "movegen")))))
   :description "A chess library"
   :in-order-to ((test-op (test-op "monsoon/tests"))))
 

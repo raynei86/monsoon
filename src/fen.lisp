@@ -2,6 +2,8 @@
 
 (in-package #:monsoon)
 
+(declaim (optimize (speed 3) (safety 1)))
+
 (defun fen-char-to-piece (ch)
   "Return the piece keyword represented by CH."
   (ecase (char-downcase ch)
@@ -53,12 +55,10 @@
 (defun position-from-fen (fen)
   "Constructs a position from a FEN string"
   (with-fen-fields (placement side castling ep halfmove fullmove) fen
-    (let ((pos (make-position)))
-      (setf
-       pos (parse-placement placement)
-       (pos-side-to-move    pos) (parse-side     side)
-       (pos-castling        pos) (parse-castling castling)
-       (pos-ep-square       pos) (parse-ep-square ep)
-       (pos-halfmove-clock  pos) (parse-integer  halfmove)
-       (pos-fullmove-number pos) (parse-integer  fullmove))
+    (let ((pos (parse-placement placement)))
+      (setf (pos-side-to-move    pos) (parse-side     side)
+            (pos-castling        pos) (parse-castling castling)
+            (pos-ep-square       pos) (parse-ep-square ep)
+            (pos-halfmove-clock  pos) (parse-integer  halfmove)
+            (pos-fullmove-number pos) (parse-integer  fullmove))
       pos)))
