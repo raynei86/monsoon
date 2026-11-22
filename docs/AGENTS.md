@@ -23,8 +23,9 @@ src/
 tests/
   main.lisp          — rove test suite
 docs/
-  api.md             — public API reference
-  developer-guide.md — architecture overview
+  api.md                 — public API reference
+  developer-guide.md     — architecture overview
+  performance-history.md — measured perft history across the git timeline
 ```
 
 ---
