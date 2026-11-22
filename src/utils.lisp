@@ -17,16 +17,6 @@
   (declare (type bitboard bb))
   (1- (integer-length bb)))
 
-(defmacro-clause (FOR bit in-bitboard bitboard)
-  "Iterates over the individual bits of a bitboard"
-  (with-gensyms (bb)
-    `(progn
-       (with ,bb = ,bitboard)
-       (for ,bit = (if (zerop ,bb)
-			  (terminate)
-			  (lsb ,bb)))
-       (after-each (setf ,bb (logand ,bb (1- ,bb)))))))
-
 (defmacro do-bitboard ((bit bitboard &optional result) &body body)
   "Iterates over the individual set bits of a bitboard, binding BIT to each LSB."
   (let ((bb (gensym "BB-")))

@@ -19,14 +19,14 @@
 (deftype move () '(unsigned-byte 20))
 
 (declaim (inline move-from move-to move-promotion move-flags make-move
-                 promotion-code code->promotion))
+                 promotion-code code-to-promotion))
 
 (defun promotion-code (promotion)
   "Encode a promotion piece (or NIL) as the 3-bit field value."
   (case promotion
     ((nil) 0) (:queen 1) (:rook 2) (:bishop 3) (:knight 4)))
 
-(defun code->promotion (code)
+(defun code-to-promotion (code)
   "Decode a 3-bit promotion field value into a piece keyword or NIL."
   (case code
     (0 nil) (1 :queen) (2 :rook) (3 :bishop) (4 :knight)))
@@ -44,7 +44,7 @@
 (defun move-promotion (move)
   "The promotion piece of MOVE, or NIL."
   (declare (type move move))
-  (code->promotion (ldb (byte 3 +move-promotion-offset+) move)))
+  (code-to-promotion (ldb (byte 3 +move-promotion-offset+) move)))
 
 (defun move-flags (move)
   "The flag bits of MOVE."
@@ -80,9 +80,10 @@
   "Return moves from FROM to each target in TARGETS-BB."
   (declare (type square from)
            (type bitboard targets-bb))
-  (iter
-    (for target in-bitboard targets-bb)
-    (collect (make-move from target nil flags))))
+  (let ((moves '()))
+    (do-bitboard (target targets-bb)
+      (push (make-move from target nil flags) moves))
+    (nreverse moves)))
 
 ;; Attack tables
 ;; Precompute king and knight attacks for every square.
@@ -97,27 +98,26 @@
     (:ssw -17) (:sww -10) (:nww 6) (:nnw 15)))
 
 (defmacro offsets (&rest dirs)
-  "Translates compass keywords to a list of integer offsets."
-  `(iter
-     (for dir in ,dirs)
-     (collect (direction->offset dir))))
+  "Translates compass keywords to a list of integer offsets.
+   DIRS may arrive as a quoted literal list when spliced in by
+   GENERATE-ATTACK-TABLE, so unwrap a leading QUOTE."
+  (let ((dirs (if (and (consp dirs) (eq (first dirs) 'quote))
+                  (second dirs)
+                  dirs)))
+    `(list ,@(mapcar (lambda (dir) (direction->offset dir)) dirs))))
 
 (defmacro generate-attack-table (directions &body check-logic)
   "Build a 64-entry table of attack bitboards for DIRECTIONS.
    CHECK-LOGIC runs with FROM and TO bound to a square and one of its
    candidate neighbors; the neighbor is kept when it returns true."
-  `(iter
-     (with table = (make-array 64 :element-type 'bitboard :initial-element 0))
-     (for sq from 0 below 64)
-     (setf (aref table sq)
-	   (iter
-	     (for offset in (offsets ,@directions))
-	     (for to = (+ sq offset))
-	     (when (and (<= 0 to 63)
-			(let ((from sq) (to to)) ,@check-logic))
-	       (sum (ash 1 to) into attacks))
-	     (finally (return attacks))))
-     (finally (return table))))
+  `(let ((table (make-array 64 :element-type 'bitboard :initial-element 0)))
+     (dotimes (sq 64 table)
+       (setf (aref table sq)
+             (loop for offset in (offsets ,@directions)
+                   for to = (+ sq offset)
+                   when (and (<= 0 to 63)
+                             (let ((from sq) (to to)) ,@check-logic))
+                     sum (ash 1 to) of-type bitboard)))))
 
 (defconst +king-attacks+
   (generate-attack-table '(:n :s :e :w :ne :nw :se :sw)
@@ -132,21 +132,18 @@
 
 
 ;; Rays and sliding pieces
+
 (defmacro generate-ray-table (direction)
   "Creates an attack table for rays going in that direction, ignoring attackers"
   (let ((offset (direction->offset direction)))
-    `(iter
-       (with table = (make-array 64 :element-type 'bitboard :initial-element 0))
-       (for sq from 0 below 64)
-       (setf (aref table sq)
-	     (iter
-	       (for current initially sq then next)
-	       (for next = (+ current ,offset))
-	       (while (and (<= 0 next 63)
-			      (<= (abs (- (file-of next) (file-of current))) 1)))
-	       (sum (ash 1 next) into ray)
-	       (finally (return ray))))
-       (finally (return table)))))
+    `(let ((table (make-array 64 :element-type 'bitboard :initial-element 0)))
+       (dotimes (sq 64 table)
+         (setf (aref table sq)
+               (loop for current = sq then next
+                     for next = (+ current ,offset)
+                     while (and (<= 0 next 63)
+                                (<= (abs (- (file-of next) (file-of current))) 1))
+                     sum (ash 1 next) of-type bitboard))))))
 
 (deftype ray-table () '(simple-array bitboard (64)))
 (deftype ray-set   () '(simple-array ray-table (8)))
@@ -215,11 +212,9 @@
 
 (defmacro union-attacks (bb expr)
   "OR together EXPR evaluated for each set bit of BB. SQ is bound to each bit index."
-  `(iter
-     (with acc = (the bitboard 0))
-     (for sq in-bitboard ,bb)
-     (setf acc (logior acc (the bitboard ,expr)))
-     (finally (return acc))))
+  `(let ((acc (the bitboard 0)))
+     (do-bitboard (sq ,bb acc)
+       (setf acc (logior acc (the bitboard ,expr))))))
 
 (defun attacked-by (pos color &key (occupied (pos-occupied-squares pos)))
   "Return a bitboard of every square attacked by COLOR's pieces in POS.
@@ -296,37 +291,37 @@
          (orth-sliders (logior opp-rooks   opp-queens))
          (pinned 0)
          (pin-lines nil))
-    (iter
-      (for dir in '(:ne :nw :se :sw :n :e :s :w))
-      (for plus-p = (or (eq dir :n) (eq dir :e) (eq dir :ne) (eq dir :nw)))
-      (for diagonal-p = (or (eq dir :ne) (eq dir :nw) (eq dir :se) (eq dir :sw)))
-      (for sliders = (if diagonal-p diag-sliders orth-sliders))
-      (for ray-bb = (ray dir king-sq))
-      (for blockers = (logand ray-bb occupied))
-      (unless (zerop blockers)
-        (let* ((near (the square (if plus-p (lsb blockers) (msb blockers))))
-               (near-bit (ash 1 near))
-               (rest (logandc2 blockers near-bit)))
-          (unless (zerop rest)
-            (let ((far (the square (if plus-p (lsb rest) (msb rest)))))
-              (when (and (logbitp near own)
-                         (logbitp far sliders))
-                (setf pinned (logior pinned near-bit))
-                (unless pin-lines
-                  (setf pin-lines (make-array 64 :element-type 'bitboard :initial-element 0)))
-                (setf (aref pin-lines near)
-                      (logior (ray dir king-sq) (ray (opposite-dir dir) king-sq)))))))))
+    (dolist (dir '(:ne :nw :se :sw :n :e :s :w))
+      (let* ((plus-p (or (eq dir :n) (eq dir :e) (eq dir :ne) (eq dir :nw)))
+             (diagonal-p (or (eq dir :ne) (eq dir :nw) (eq dir :se) (eq dir :sw)))
+             (sliders (if diagonal-p diag-sliders orth-sliders))
+             (ray-bb (ray dir king-sq))
+             (blockers (logand ray-bb occupied)))
+        (unless (zerop blockers)
+          (let* ((near (the square (if plus-p (lsb blockers) (msb blockers))))
+                 (near-bit (ash 1 near))
+                 (rest (logandc2 blockers near-bit)))
+            (unless (zerop rest)
+              (let ((far (the square (if plus-p (lsb rest) (msb rest)))))
+                (when (and (logbitp near own)
+                           (logbitp far sliders))
+                  (setf pinned (logior pinned near-bit))
+                  (unless pin-lines
+                    (setf pin-lines (make-array 64 :element-type 'bitboard :initial-element 0)))
+                  (setf (aref pin-lines near)
+                        (logior (ray dir king-sq) (ray (opposite-dir dir) king-sq))))))))))
     (values pinned pin-lines)))
 
 (defmacro generate-major-piece-moves (pieces-bb attack-expr friendly enemy)
   "Generate pseudo-legal moves for pieces that are not pawns in pieces-bb"
-  `(iter
-     (for from in-bitboard ,pieces-bb)
-     (let* ((attacks (logandc2 ,attack-expr ,friendly))
-	    (captures (logand attacks ,enemy))
-	    (quiets (logandc2 attacks ,enemy)))
-       (nconcing (emit-moves from captures +move-flag-capture+))
-       (nconcing (emit-moves from quiets)))))
+  `(loop for bb = ,pieces-bb then (logand bb (1- bb))
+         until (zerop bb)
+         for from = (lsb bb)
+         for attacks = (logandc2 ,attack-expr ,friendly)
+         for captures = (logand attacks ,enemy)
+         for quiets = (logandc2 attacks ,enemy)
+         nconc (emit-moves from captures +move-flag-capture+)
+         nconc (emit-moves from quiets)))
 
 (defun generate-knight-moves (position)
   "Generate pseudo-legal knight moves for the side to move."
@@ -385,18 +380,18 @@
 
 (defmacro emit-pawn-moves (targets shift &optional (flags 0))
   "Emit moves for all targets, deriving the source square as (target - shift)."
-  `(iter
-    (for target in-bitboard ,targets)
-    (collect (make-move (- target ,shift) target nil ,flags))))
+  `(let ((moves '()))
+     (do-bitboard (target ,targets)
+       (push (make-move (- target ,shift) target nil ,flags) moves))
+     (nreverse moves)))
 
 (defmacro emit-pawn-promos (targets shift &optional (flags 0))
   "Emit all 4 promotion types as moves"
-  `(iter
-     (for target in-bitboard ,targets)
-     (nconcing
-      (iter
-	(for promo in '(:queen :rook :bishop :knight))
-	(collect (make-move (- target ,shift) target promo ,flags))))))
+  `(let ((moves '()))
+     (do-bitboard (target ,targets)
+       (dolist (promo '(:queen :rook :bishop :knight))
+         (push (make-move (- target ,shift) target promo ,flags) moves)))
+     (nreverse moves)))
 
 (defun generate-pawn-moves (position)
   "Generate pseudo-legal pawn moves for the side to move."
@@ -621,7 +616,13 @@
 (defmacro with-move-applied ((position move) &body body)
   "Apply MOVE to POSITION in place, run BODY, then undo.
    POSITION is restored on exit, including non-local exits."
-  (with-gensyms (m moving captured castling ep halfmove fullmove)
+  (let ((m (gensym "M-"))
+        (moving (gensym "MOVING-"))
+        (captured (gensym "CAPTURED-"))
+        (castling (gensym "CASTLING-"))
+        (ep (gensym "EP-"))
+        (halfmove (gensym "HALFMOVE-"))
+        (fullmove (gensym "FULLMOVE-")))
     `(let ((,m ,move))
        (multiple-value-bind (,moving ,captured ,castling ,ep ,halfmove ,fullmove)
            (do-move! ,position ,m)
@@ -762,10 +763,8 @@
 (defun generate-legal-moves (pos)
   "Generate the legal moves for the side to move in POS."
   (let ((ctx (make-legality-context pos)))
-    (iter
-      (for move in (generate-moves pos))
-      (when (move-legal-p ctx pos move)
-        (collect move)))))
+    (remove-if-not (lambda (move) (move-legal-p ctx pos move))
+                   (generate-moves pos))))
 
 (defun perft (pos depth)
   "Count leaf nodes by enumerating legal moves to DEPTH."
@@ -773,11 +772,11 @@
            (values fixnum))
   (if (zerop depth)
       1
-      (let ((ctx (make-legality-context pos)))
-        (iter
-          (with total = 0)
-          (for move in (generate-moves pos))
+      (let ((ctx (make-legality-context pos))
+            (total 0))
+        (declare (type fixnum total))
+        (dolist (move (generate-moves pos) (the fixnum total))
           (when (move-legal-p ctx pos move)
             (with-move-applied (pos move)
-              (setf total (the fixnum (+ total (the fixnum (perft pos (1- depth))))))))
-          (finally (return total))))))
+              (incf (the fixnum total)
+                    (the fixnum (perft pos (1- depth))))))))))

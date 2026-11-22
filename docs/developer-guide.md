@@ -10,7 +10,7 @@ src/
   package.lisp       — single package :monsoon with all exports
   types.lisp         — squares, bitboards, pieces, colors, castling rights
   position.lisp      — position struct, board mutation, position macros
-  utils.lisp         — bitboard helpers (lsb, msb) and iterate clause
+  utils.lisp         — bitboard helpers (lsb, msb) and the do-bitboard macro
   moves.lisp         — packed move type, attack tables, move generation, do-move
   fen.lisp           — FEN string parsing → position
   uci.lisp           — UCI protocol engine base class and I/O loop
@@ -121,9 +121,7 @@ Engine behaviour is customised by overriding generic functions:
 
 | Library | Role |
 |---|---|
-| `iterate` | Extended iteration (`iter`, `for`, `in-bitboard` clause) |
-| `serapeum` | `defconst`, `tokens`, `nest` |
-| `alexandria` | `with-gensyms` in macro internals |
+| `serapeum` | `defconst`, `tokens` |
 | `rove` | Test framework (test system only) |
 
-The package `:use`s `:iterate`, so iterate forms within `:monsoon` are written bare (`iter`, `for`, `collect`, …).
+The package uses only `:cl`; `do-bitboard` and plain `loop` are the iteration idioms within `:monsoon`.

@@ -1,5 +1,5 @@
 (defpackage :monsoon
-  (:use :cl :iterate)
+  (:use :cl)
   (:shadow :position)
   (:import-from :serapeum #:defconst #:tokens)
 

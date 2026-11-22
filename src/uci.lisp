@@ -205,18 +205,16 @@ resources and terminate any background threads here. The default implementation 
     (#\n :knight)))
 
 (defun uci-lookup-move (position from to promotion)
-  (iter
-    (for move in (generate-moves position))
-    (when (and (eql from (move-from move))
-               (eql to (move-to move))
-               (eql promotion (move-promotion move))
-               (legal-move-p position move))
-      (leave move))
-    (finally
-     (error "Illegal or unknown move: ~a~a~@[~c~]"
-            (uci-square-string from)
-            (uci-square-string to)
-            (when promotion (uci-promotion-char promotion))))))
+  (or (find-if (lambda (move)
+                 (and (eql from (move-from move))
+                      (eql to (move-to move))
+                      (eql promotion (move-promotion move))
+                      (legal-move-p position move)))
+               (generate-moves position))
+      (error "Illegal or unknown move: ~a~a~@[~c~]"
+             (uci-square-string from)
+             (uci-square-string to)
+             (when promotion (uci-promotion-char promotion)))))
 
 (defun uci-parse-move (position move-str)
   (unless (and (stringp move-str)
