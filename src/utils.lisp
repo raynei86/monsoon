@@ -26,3 +26,11 @@
 			  (terminate)
 			  (lsb ,bb)))
        (after-each (setf ,bb (logand ,bb (1- ,bb)))))))
+
+(defmacro do-bitboard ((bit bitboard &optional result) &body body)
+  "Iterates over the individual set bits of a bitboard, binding BIT to each LSB."
+  (let ((bb (gensym "BB-")))
+    `(do ((,bb ,bitboard (logand ,bb (1- ,bb))))
+         ((zerop ,bb) ,result)
+       (let ((,bit (lsb ,bb)))
+         ,@body))))
