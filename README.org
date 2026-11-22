@@ -8,30 +8,22 @@ with [[https://github.com/niklasf/python-chess][python chess]], and almost on pa
 
 * Setup
 
-Dependencies (`serapeum`, plus `rove` for the
-test suite) are resolved from quicklisp. The project is developed with
-[[https://github.com/roswell/roswell][Roswell]].
+Dependencies:
+- ~serapeum~
+- ~rove~ (for tests)
 
-Link the project into ASDF's source location so quicklisp can find it:
-
+You can clone this repo to your ~local-projects/~ directory for quicklisp to discover it:
 #+begin_src sh
-  mkdir -p ~/common-lisp
-  ln -s "$PWD" ~/common-lisp/monsoon
+git clone https://github.com/raynei86/monsoon.git ~/.quicklisp/local-projects
 #+end_src 
 
 * Running tests
-
-#+begin_src sh
-  ros run -e '(asdf:test-system :monsoon)'
-#+end_src
-
-Or from a REPL:
-
+From a REPL:
 #+begin_src lisp
-  (asdf:test-system :monsoon)
+(asdf:test-system :monsoon)
 #+end_src
 
 * AI Statement
 This project was created with the assistance of AI. Most of the
 boilerplate and all the tests are written by AI. The code and design
-is by me.
+are by me.
