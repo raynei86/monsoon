@@ -139,11 +139,27 @@ The confirmed regressions were traced to specific changes with `sb-sprof` profil
 
 - **Cause:** `with-castling-params` was moved into `do-move!` and `undo-move!`, where its `let` bindings run **unconditionally for every move**. Only four bindings are used (rook from/to), and each is an `(if (eq side :white) …)` selection; the old code had those selections inside the castle branch, so non-castling moves paid nothing.
 - **Component benchmark:** apply + undo (2,000,000 operations) drops from 0.101 s to 0.095 s (**−6%**) when the selections are moved back inside the branches — consistent with ~2–3% of perft.
-- **Fix:** compute the rook-square constants inside the castle branches (or expand them lazily via a `macrolet`).
+- **Fix:** compute the rook-square constants inside the castle branches (or expand them lazily via a `macrolet`). Landed in Phase 2 with the `side-parameters` table — see the Phase 2 measurement below.
 
 ### `e62154d` — `attacked-by-kingless` (not a regression)
 
 - The `make-legality-context` microbenchmark (300,000 calls) is unchanged: 0.132 s before, 0.129 s after. The earlier ~1.8% attribution from single-visit depth-6 runs was noise. No action needed.
+
+## Phase 2: side-parameters table (working tree, uncommitted)
+
+The `c150490` castling fix was landed structurally rather than as a local patch. All per-color knowledge now lives in a two-entry `side-parameters` table indexed by `color-index`; `do-move!`/`undo-move!` read the castling squares only when the move actually castles, and the pawn generators read their shifts from the same table. `with-castling-params`, `with-pawn-params`, `castling-safe-squares`, and the entire `castling.lisp` module are gone.
+
+Measured against the Phase 1 state in one SBCL image (pre-Phase-2 snapshot loaded as `monsoon-base`, arms alternated, full GC before each run, depth 6 = 119,060,324 nodes):
+
+| Arm | apply+undo, 2M ops | depth-6 |
+|---|---|---|
+| Phase 1 state | 0.097–0.099 s | 15.202 s / 17.256 s |
+| Phase 2 | 0.079 s | 13.963 s / 14.226 s |
+
+- **apply+undo: −19%** (0.098 → 0.079 s, min of four 2M-operation runs). The whole-move `with-castling-params` expansion is gone, so quiet moves no longer pay eleven `(if (eq side :white) …)` selections.
+- **depth 6: −8.2%** against the best Phase-1 run (15.202 → 13.963 s), far past the ≥2% target. The original ~2–3% estimate undercounted because the table also removes the remaining pawn-direction conditionals from the every-move path.
+- **Allocation unchanged:** 26.454 vs 26.432 bytes/node at depth 5; the component figures (`generate-moves` 41.57 MB per 100k calls, `generate-pawn-moves` 25.58 MB, `generate-rook-moves` 3.18 MB, `make-legality-context` 12.78 MB) are identical to the pre-Phase-2 numbers.
+- **Correctness:** 13/13 tests, startpos `20/400/8902/197281`, Kiwipete `48/2039/97862`, Kiwipete depth 4, and positions 4–6 of the extended battery.
 
 ## Planned resolution: allocation-free move generation
 
@@ -153,7 +169,7 @@ Both regressions above point at the same structural cost: every node builds a fr
 - A `with-legal-moves`-style macro (or a `do-bitboard`-style driver) owns the buffer for the duration of one node and exposes the filled slice; perft and search iterate that region directly, and legality filtering compacts in place rather than allocating a second list.
 - This removes the `nreverse` pass *and* the per-node consing/GC pressure the current design incurs, so it subsumes both local micro-fixes suggested for the iterate-removal regression.
 
-Expected effect: recovery of the ~3.4% reversal cost plus the remaining per-node allocation, to be measured with the same depth-6 A/B protocol once implemented. The `c150490` castling fix is independent of this refactor and still applies.
+Expected effect: recovery of the ~3.4% reversal cost plus the remaining per-node allocation, to be measured with the same depth-6 A/B protocol once implemented. The `c150490` castling fix is independent of this refactor and landed separately in Phase 2 (measured below).
 
 ## Cross-library reference: `queen.lisp`
 

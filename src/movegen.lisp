@@ -67,19 +67,6 @@
      friendly enemy)))
 
 ;; Pawn move generation
-(defmacro with-pawn-params (side &body body)
-  "Bind pawn movement parameters for `side. All shifts are from the
-   perspective of the board (east = toward file H), not the pawn.
-   SHIFT-BOARD pushes a bitboard one rank toward the opponent, keeping
-   the result within 64 bits."
-  `(let ((push-shift  (if (eq ,side :white)  8  -8))
-	 (cap-e-shift (if (eq ,side :white)  9  -7)) ; NE / SE
-	 (cap-w-shift (if (eq ,side :white)  7  -9)) ; NW / SW
-	 (start-rank  (if (eq ,side :white) +rank-2+ +rank-7+))
-	 (promo-rank  (if (eq ,side :white) +rank-8+ +rank-1+)))
-     (macrolet ((shift-board (bb)
-		  `(logand (ash ,bb push-shift) +full-board+)))
-       ,@body)))
 
 (defmacro emit-pawn-moves (targets shift &optional (flags 0))
   "Emit moves for all targets, deriving the source square as (target - shift)."
@@ -96,67 +83,84 @@
          (push (make-move (- target ,shift) target promo ,flags) moves)))
      (nreverse moves)))
 
+(declaim (inline shift-board))
+
+(defun shift-board (bb shift)
+  "Shift BB by SHIFT squares, discarding bits pushed off the board."
+  (declare (type bitboard bb) (type fixnum shift))
+  (logand (ash bb shift) +full-board+))
+
 (defun generate-pawn-moves (position)
   "Generate pseudo-legal pawn moves for the side to move."
   ;; Pawn moves use shifted masks for pushes and captures.
   ;; push1/push2 are quiet advances; cap-e/cap-w are capture masks.
   (with-position (side occupied friendly enemy) position
-    (with-pawn-params side
-      (let* ((pawns (aref (pos-boards position) (colored-piece-index :pawn side)))
-             (empty (logand (lognot occupied) +full-board+))
+    (let* ((params (side-params side))
+           (push-shift (side-push-shift params))
+           (cap-e-shift (side-cap-e-shift params))
+           (cap-w-shift (side-cap-w-shift params))
+           (start-rank (side-start-rank params))
+           (promo-rank (side-promo-rank params))
+           (pawns (aref (pos-boards position) (colored-piece-index :pawn side)))
+           (empty (logand (lognot occupied) +full-board+))
 
-             ;; Pushes
-             (push1 (logand (shift-board pawns) empty))
-	     (push2 (logand (shift-board (logand (shift-board (logand pawns start-rank))
-						 empty))
-			    empty))
+           ;; Pushes
+           (push1 (logand (shift-board pawns push-shift) empty))
+           (push2 (logand (shift-board (logand (shift-board (logand pawns start-rank)
+                                                            push-shift)
+                                               empty)
+                                       push-shift)
+                          empty))
 
-             ;; Captures
-             (cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) enemy))
-             (cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) enemy))
+           ;; Captures
+           (cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) enemy))
+           (cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) enemy))
 
-             ;; Split promotions from regular moves
-             (push1-promo (logand    push1 promo-rank))
-             (push1-quiet (logandc2  push1 promo-rank))
-             (cap-e-promo (logand    cap-e promo-rank))
-             (cap-e-quiet (logandc2  cap-e promo-rank))
-             (cap-w-promo (logand    cap-w promo-rank))
-             (cap-w-quiet (logandc2  cap-w promo-rank)))
+           ;; Split promotions from regular moves
+           (push1-promo (logand    push1 promo-rank))
+           (push1-quiet (logandc2  push1 promo-rank))
+           (cap-e-promo (logand    cap-e promo-rank))
+           (cap-e-quiet (logandc2  cap-e promo-rank))
+           (cap-w-promo (logand    cap-w promo-rank))
+           (cap-w-quiet (logandc2  cap-w promo-rank)))
 
-        (nconc
-	 (emit-pawn-moves push1-quiet push-shift) 
-         (emit-pawn-moves push2 (* 2 push-shift) +move-flag-double+)
-         (emit-pawn-moves cap-e-quiet cap-e-shift +move-flag-capture+)
-         (emit-pawn-moves cap-w-quiet cap-w-shift +move-flag-capture+)
+      (nconc
+       (emit-pawn-moves push1-quiet push-shift)
+       (emit-pawn-moves push2 (* 2 push-shift) +move-flag-double+)
+       (emit-pawn-moves cap-e-quiet cap-e-shift +move-flag-capture+)
+       (emit-pawn-moves cap-w-quiet cap-w-shift +move-flag-capture+)
 
-         (emit-pawn-promos push1-promo push-shift)
-         (emit-pawn-promos cap-e-promo cap-e-shift +move-flag-capture+)
-         (emit-pawn-promos cap-w-promo cap-w-shift +move-flag-capture+)
+       (emit-pawn-promos push1-promo push-shift)
+       (emit-pawn-promos cap-e-promo cap-e-shift +move-flag-capture+)
+       (emit-pawn-promos cap-w-promo cap-w-shift +move-flag-capture+)
 
-         ;; En passant uses capture logic against the ep square.
-         (when (pos-ep-square position)
-           (let* ((ep-bb    (ash 1 (pos-ep-square position)))
-                  (ep-cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) ep-bb))
-                  (ep-cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) ep-bb))
-                  (ep-flags (logior +move-flag-capture+ +move-flag-ep+)))
-	     (nconc
-	      (emit-pawn-moves ep-cap-e cap-e-shift ep-flags)
-	      (emit-pawn-moves ep-cap-w cap-w-shift ep-flags)))))))))
-
+       ;; En passant uses capture logic against the ep square.
+       (when (pos-ep-square position)
+         (let* ((ep-bb    (ash 1 (pos-ep-square position)))
+                (ep-cap-e (logand (ash (logand pawns +not-file-h+) cap-e-shift) ep-bb))
+                (ep-cap-w (logand (ash (logand pawns +not-file-a+) cap-w-shift) ep-bb))
+                (ep-flags (logior +move-flag-capture+ +move-flag-ep+)))
+           (nconc
+            (emit-pawn-moves ep-cap-e cap-e-shift ep-flags)
+            (emit-pawn-moves ep-cap-w cap-w-shift ep-flags))))))))
 
 (defun generate-castling-moves (position)
   "Generate pseudo-legal castling moves for the side to move."
   (with-position (side occupied friendly enemy) position
-    (with-castling-params side
-      (let ((rights (pos-castling position))
-	    (moves '()))
-	(when (and (logtest rights kingside-right)
-		   (not (logtest occupied kingside-empty-squares)))
-	  (push (make-move king-sq kingside-sq nil +move-flag-kingside+) moves))
-	(when (and (logtest rights queenside-right)
-		   (not (logtest occupied queenside-empty-squares)))
-	  (push (make-move king-sq queenside-sq nil +move-flag-queenside+) moves))
-	moves))))
+    (let ((params (side-params side))
+          (rights (pos-castling position))
+          (moves '()))
+      (when (and (logtest rights (side-kingside-right params))
+                 (not (logtest occupied (side-kingside-empty params))))
+        (push (make-move (side-king-sq params) (side-kingside-sq params)
+                         nil +move-flag-kingside+)
+              moves))
+      (when (and (logtest rights (side-queenside-right params))
+                 (not (logtest occupied (side-queenside-empty params))))
+        (push (make-move (side-king-sq params) (side-queenside-sq params)
+                         nil +move-flag-queenside+)
+              moves))
+      moves)))
 
 ;; Final stages, move legality and actually making the moves
 
@@ -183,8 +187,12 @@
          (opp-rooks   (aref (pos-boards pos) (colored-piece-index :rook   opp)))
          (opp-queens  (aref (pos-boards pos) (colored-piece-index :queen  opp)))
          (opp-king    (aref (pos-boards pos) (colored-piece-index :king   opp)))
-         (pawn-cap-e (if (eq color :white) 9 -7))
-         (pawn-cap-w (if (eq color :white) 7 -9)))
+         ;; King-shift trick: an enemy pawn attacks the king from exactly the
+         ;; squares the defender's own pawns would capture, so shift the king
+         ;; by the defender's capture shifts.
+         (params (side-params color))
+         (pawn-cap-e (side-cap-e-shift params))
+         (pawn-cap-w (side-cap-w-shift params)))
     (logior
      (logand (ash (logand king-bb +not-file-h+) pawn-cap-e) opp-pawns)
      (logand (ash (logand king-bb +not-file-a+) pawn-cap-w) opp-pawns)
@@ -260,9 +268,12 @@
       (cond
         ;; Castling: illegal out of, through, or into check.
         ((logtest flags (logior +move-flag-kingside+ +move-flag-queenside+))
-         (and (not (legality-context-in-check-p ctx))
-              (not (logtest (attacked-by pos (opponent side))
-                            (castling-safe-squares side flags)))))
+         (let ((params (side-params side)))
+           (and (not (legality-context-in-check-p ctx))
+                (not (logtest (attacked-by pos (opponent side))
+                              (if (logtest flags +move-flag-kingside+)
+                                  (side-kingside-safe params)
+                                  (side-queenside-safe params)))))))
         ;; King moves: destination must not be attacked. Enemy attacks were
         ;; computed with our king removed, so retreats onto a vacated line
         ;; (which the moving king would otherwise block) are caught.

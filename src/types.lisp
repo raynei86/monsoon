@@ -201,3 +201,73 @@
 (defconst +move-flag-kingside+  #b01000)
 
 (defconst +move-flag-queenside+ #b10000)
+
+;;; Side parameters
+;;; One record per color, indexed by COLOR-INDEX: everything that used to be
+;;; an (if (eq side :white) ...) dispatch. Fields are explicit — PUSH-SHIFT
+;;; points toward the opponent, PAWN-BACK-SHIFT points behind an advanced
+;;; pawn — so no caller has to negate anything.
+
+(defstruct (side-parameters (:conc-name side-))
+  "Per-color movement and castling parameters."
+  (push-shift       8 :type fixnum)   ; toward the opponent
+  (pawn-back-shift -8 :type fixnum)   ; behind a pawn (EP square/victim)
+  (cap-e-shift      9 :type fixnum)   ; east = toward file H
+  (cap-w-shift      7 :type fixnum)
+  (start-rank 0 :type bitboard)       ; rank a pawn may double-push from
+  (promo-rank 0 :type bitboard)       ; rank a pawn promotes on
+  (king-sq 0 :type square)
+  (kingside-sq 0 :type square)
+  (queenside-sq 0 :type square)
+  (kingside-right 0 :type castling-rights)
+  (queenside-right 0 :type castling-rights)
+  (kingside-empty 0 :type bitboard)
+  (queenside-empty 0 :type bitboard)
+  (kingside-safe 0 :type bitboard)
+  (queenside-safe 0 :type bitboard)
+  (kingside-rook-from 0 :type square)
+  (kingside-rook-to 0 :type square)
+  (queenside-rook-from 0 :type square)
+  (queenside-rook-to 0 :type square))
+
+(defun make-side-parameters-table ()
+  "Build the white/black parameter vector. Load-time only: it calls SQ."
+  (vector
+   (make-side-parameters
+    :push-shift 8 :pawn-back-shift -8 :cap-e-shift 9 :cap-w-shift 7
+    :start-rank +rank-2+ :promo-rank +rank-8+
+    :king-sq (sq :e1) :kingside-sq (sq :g1) :queenside-sq (sq :c1)
+    :kingside-right +white-kingside+ :queenside-right +white-queenside+
+    :kingside-rook-from (sq :h1) :kingside-rook-to (sq :f1)
+    :queenside-rook-from (sq :a1) :queenside-rook-to (sq :d1)
+    :kingside-empty (logior (ash 1 (sq :f1)) (ash 1 (sq :g1)))
+    :queenside-empty (logior (ash 1 (sq :b1)) (ash 1 (sq :c1)) (ash 1 (sq :d1)))
+    :kingside-safe (logior (ash 1 (sq :f1)) (ash 1 (sq :g1)))
+    :queenside-safe (logior (ash 1 (sq :c1)) (ash 1 (sq :d1))))
+   (make-side-parameters
+    :push-shift -8 :pawn-back-shift 8 :cap-e-shift -7 :cap-w-shift -9
+    :start-rank +rank-7+ :promo-rank +rank-1+
+    :king-sq (sq :e8) :kingside-sq (sq :g8) :queenside-sq (sq :c8)
+    :kingside-right +black-kingside+ :queenside-right +black-queenside+
+    :kingside-rook-from (sq :h8) :kingside-rook-to (sq :f8)
+    :queenside-rook-from (sq :a8) :queenside-rook-to (sq :d8)
+    :kingside-empty (logior (ash 1 (sq :f8)) (ash 1 (sq :g8)))
+    :queenside-empty (logior (ash 1 (sq :b8)) (ash 1 (sq :c8)) (ash 1 (sq :d8)))
+    :kingside-safe (logior (ash 1 (sq :f8)) (ash 1 (sq :g8)))
+    :queenside-safe (logior (ash 1 (sq :c8)) (ash 1 (sq :d8))))))
+
+(defparameter +side-parameters+ (make-side-parameters-table)
+  "Per-color parameters indexed by COLOR-INDEX. A DEFPARAMETER, not a
+   DEFCONST: its initializer calls SQ, which is not available while this
+   file is still compiling.")
+
+(declaim (type (simple-vector 2) +side-parameters+))
+
+(declaim (inline side-params))
+
+(declaim (ftype (function (color) side-parameters) side-params))
+
+(defun side-params (side)
+  "The movement and castling parameters for SIDE."
+  (declare (type color side))
+  (svref +side-parameters+ (color-index side)))

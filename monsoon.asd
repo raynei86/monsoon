@@ -7,11 +7,10 @@
                 :components
                 ((:file "package")
                  (:file "types")
-                 (:file "castling" :depends-on ("types"))
-                 (:file "position" :depends-on ("types" "castling"))
+                 (:file "position" :depends-on ("types"))
                  (:file "utils" :depends-on ("types"))
                  (:file "attacks" :depends-on ("types" "position" "utils"))
-                 (:file "movegen" :depends-on ("types" "position" "utils" "attacks" "castling"))
+                 (:file "movegen" :depends-on ("types" "position" "utils" "attacks"))
                  (:file "fen" :depends-on ("position" "types"))
                  (:file "uci" :depends-on ("fen" "movegen")))))
   :description "A chess library"

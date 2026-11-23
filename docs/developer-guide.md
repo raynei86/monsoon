@@ -8,8 +8,8 @@ This guide covers the internal architecture, data representations, and algorithm
 monsoon.asd          — ASDF system definition (main + test systems)
 src/
   package.lisp       — single package :monsoon with all exports
-  types.lisp         — squares, bitboards, pieces, colors, castling rights, packed move type
-  castling.lisp      — castling squares, paths, and per-side parameters
+  types.lisp         — squares, bitboards, pieces, colors, castling rights and
+                       geometry, per-side parameters, packed move type
   position.lisp      — position struct, board mutation, make/unmake, position macros
   utils.lisp         — bitboard helpers (lsb, msb) and the do-bitboard macro
   attacks.lisp       — attack tables, ray math, attacked squares, checks, pins
@@ -49,6 +49,8 @@ The `sq` function converts symbolic square names (`:e4`, `:h1`, etc.) to their i
 
 All constants use `defconst` (imported from `serapeum`) rather than `defconstant`. SBCL treats `defconstant` redefinition as an error during interactive development; `defconst` avoids this while still communicating the intent.
 
+Per-color movement and castling knowledge is collected in the `side-parameters` table (see "Move generation"), so no code branches on `:white`/`:black` to decide a shift direction or a rook square. Each record carries the pawn shifts and rank masks plus the castling squares, rights bits, and empty/safe masks.
+
 ## Board representation
 
 Monsoon uses a triple-redundant bitboard representation. A `position` struct holds three overlapping views of the same board state:
@@ -63,7 +65,7 @@ All mutations go through `place-piece!` and `remove-piece!`, which update all th
 
 ## Move generation
 
-Move generation is split into two stages: pseudo-legal generation followed by legal filtering. The packed `move` representation lives in `types.lisp`, castling geometry in `castling.lisp`, attack tables and queries in `attacks.lisp`, and the generators and legality layer in `movegen.lisp`.
+Move generation is split into two stages: pseudo-legal generation followed by legal filtering. The packed `move` representation lives in `types.lisp`, together with the two-entry `side-parameters` table that holds every per-color value; attack tables and queries live in `attacks.lisp`, and the generators and legality layer in `movegen.lisp`.
 
 ### Pseudo-legal generation
 
@@ -75,13 +77,13 @@ Move generation is split into two stages: pseudo-legal generation followed by le
 
 The attack-mask forms (`rook-attack-mask`, `bishop-attack-mask`, `queen-attack-mask`) are macros rather than functions. This is because `generate-major-piece-moves` is itself a macro that introduces a `from` binding for the current piece's square, and the attack expressions need to reference that binding. Making the attack forms macros allows them to be written as if `from` were in scope, which it is at the point of macro expansion.
 
-**Pawns** are handled entirely with bitboard shifts and masks, with no per-pawn iteration. Single pushes, double pushes, east captures, and west captures are each computed as a bitboard operation on all pawns at once. Target bitboards are then split against the promotion-rank mask to separate promotion moves from quiet moves before emitting packed `move` integers. En passant is handled by masking captures against a single-bit bitboard for the en passant square.
+**Pawns** are handled entirely with bitboard shifts and masks, with no per-pawn iteration. Single pushes, double pushes, east captures, and west captures are each computed as a bitboard operation on all pawns at once. Target bitboards are then split against the promotion-rank mask to separate promotion moves from quiet moves before emitting packed `move` integers. En passant is handled by masking captures against a single-bit bitboard for the en passant square. The shift amounts, start rank, and promotion rank come from `side-params`, so one code path serves both colors.
 
-**Castling** checks the relevant rights bits and empty-path masks, then emits a king move tagged with `+move-flag-kingside+` or `+move-flag-queenside+`. The rook relocation is handled inside `do-move` when those flags are present, rather than in the generator itself.
+**Castling** checks the relevant rights bits and empty-path masks, then emits a king move tagged with `+move-flag-kingside+` or `+move-flag-queenside+`. The rook relocation is handled inside `do-move!` when those flags are present, rather than in the generator itself; the squares come from the castling fields of `side-params`.
 
 ### Legal filtering
 
-Legality is classified without making each move. `make-legality-context` computes per-position invariants once: `king-danger` (enemy attacks with the moving king removed, which both detects check and validates king destinations), the set of own pieces pinned to the king and the line each is restricted to, and an evasion mask when in check (capture the checker or block its ray). `move-legal-p` then classifies each candidate with O(1) bit tests — castling must not be out of/through/into check, king moves must not land on an attacked square, pinned pieces must stay on their pin line, and in-check moves must reach the evasion mask. Everything else is legal. `generate-legal-moves` filters the pseudo-legal list with `move-legal-p`.
+Legality is classified without making each move. `make-legality-context` computes per-position invariants once: `king-danger` (enemy attacks with the moving king removed, which both detects check and validates king destinations), the set of own pieces pinned to the king and the line each is restricted to, and an evasion mask when in check (capture the checker or block its ray). `move-legal-p` then classifies each candidate with O(1) bit tests — castling must not be out of/through/into check (the transit and destination squares come from the wing's `side-kingside-safe`/`side-queenside-safe` mask), king moves must not land on an attacked square, pinned pieces must stay on their pin line, and in-check moves must reach the evasion mask. Everything else is legal. `generate-legal-moves` filters the pseudo-legal list with `move-legal-p`.
 
 ## FEN parsing
 

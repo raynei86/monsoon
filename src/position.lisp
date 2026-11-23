@@ -31,8 +31,6 @@
   ;; Reserved for Zobrist hashing (not implemented yet).
   (hash         0   :type hash-key))
 
-; Zobrist hash not implemented yet, keep it for now
-
 (defun occupied-p (position square)
   "Return true if SQUARE is occupied in POSITION."
   (declare (type square square))
@@ -136,7 +134,6 @@
    OLD-FULLMOVE), the values UNDO-MOVE! needs to restore POSITION."
   (let* ((side (pos-side-to-move position))
          (opp (opponent side))
-         (pawn-dir (if (eq side :white) -8 +8))
          (old-castling (pos-castling position))
          (old-ep (pos-ep-square position))
          (old-halfmove (pos-halfmove-clock position))
@@ -149,7 +146,9 @@
                     (colored-piece-index (piece-at position to) opp)))))
         (when captured-cpc
           (remove-piece! position
-                         (if (logtest flags +move-flag-ep+) (+ to pawn-dir) to)
+                         (if (logtest flags +move-flag-ep+)
+                             (+ to (side-pawn-back-shift (side-params side)))
+                             to)
                          captured-cpc))
         (let ((moving-cpc (colored-piece-index (piece-at position from) side)))
           (remove-piece! position from moving-cpc)
@@ -158,19 +157,21 @@
           (when promotion
             (remove-piece! position to moving-cpc)
             (place-piece! position to (colored-piece-index promotion side)))
-          ;; Castling and relocate rook
-          (let ((rook-cpc (colored-piece-index :rook side)))
-            (with-castling-params side
-              (cond
-                ((logtest flags +move-flag-kingside+)
-                 (remove-piece! position kingside-rook-from rook-cpc)
-                 (place-piece!  position kingside-rook-to rook-cpc))
-                ((logtest flags +move-flag-queenside+)
-                 (remove-piece! position queenside-rook-from rook-cpc)
-                 (place-piece!  position queenside-rook-to rook-cpc)))))
+          ;; Castling: relocate the rook (castling moves only).
+          (when (logtest flags (logior +move-flag-kingside+ +move-flag-queenside+))
+            (let ((params (side-params side))
+                  (rook-cpc (colored-piece-index :rook side)))
+              (if (logtest flags +move-flag-kingside+)
+                  (progn
+                    (remove-piece! position (side-kingside-rook-from params) rook-cpc)
+                    (place-piece!  position (side-kingside-rook-to params) rook-cpc))
+                  (progn
+                    (remove-piece! position (side-queenside-rook-from params) rook-cpc)
+                    (place-piece!  position (side-queenside-rook-to params) rook-cpc)))))
           ;; Set the new en passant square on a double pawn push.
           (setf (pos-ep-square position)
-                (when (logtest flags +move-flag-double+) (+ to pawn-dir)))
+                (when (logtest flags +move-flag-double+)
+                  (+ to (side-pawn-back-shift (side-params side)))))
           ;; Update castling rights.
           (setf (pos-castling position)
                 (logand old-castling
@@ -193,8 +194,7 @@
 (defun undo-move! (position move moving-cpc captured-cpc
                    old-castling old-ep old-halfmove old-fullmove)
   "Reverse the effect of DO-MOVE! on POSITION."
-  (let* ((side (colored-piece-code-color moving-cpc))
-         (pawn-dir (if (eq side :white) -8 +8)))
+  (let ((side (colored-piece-code-color moving-cpc)))
     (with-move (from to promotion flags) move
       ;; Move the piece back from TO to FROM, reversing any promotion.
       (remove-piece! position to
@@ -202,21 +202,24 @@
                          (colored-piece-index promotion side)
                          moving-cpc))
       (place-piece! position from moving-cpc)
-      ;; Restore any captured piece.
+      ;; Restore any captured piece (an EP victim sits behind TO).
       (when captured-cpc
         (place-piece! position
-                      (if (logtest flags +move-flag-ep+) (+ to pawn-dir) to)
+                      (if (logtest flags +move-flag-ep+)
+                          (+ to (side-pawn-back-shift (side-params side)))
+                          to)
                       captured-cpc))
       ;; Restore the rook relocated by castling.
-      (let ((rook-cpc (colored-piece-index :rook side)))
-        (with-castling-params side
-          (cond
-            ((logtest flags +move-flag-kingside+)
-             (remove-piece! position kingside-rook-to rook-cpc)
-             (place-piece!  position kingside-rook-from rook-cpc))
-            ((logtest flags +move-flag-queenside+)
-             (remove-piece! position queenside-rook-to rook-cpc)
-             (place-piece!  position queenside-rook-from rook-cpc)))))
+      (when (logtest flags (logior +move-flag-kingside+ +move-flag-queenside+))
+        (let ((params (side-params side))
+              (rook-cpc (colored-piece-index :rook side)))
+          (if (logtest flags +move-flag-kingside+)
+              (progn
+                (remove-piece! position (side-kingside-rook-to params) rook-cpc)
+                (place-piece!  position (side-kingside-rook-from params) rook-cpc))
+              (progn
+                (remove-piece! position (side-queenside-rook-to params) rook-cpc)
+                (place-piece!  position (side-queenside-rook-from params) rook-cpc)))))
       ;; Restore scalar state.
       (setf (pos-castling position) old-castling
             (pos-ep-square position) old-ep

@@ -149,8 +149,9 @@
          (rooks   (aref boards (colored-piece-index :rook   color)))
          (queens  (aref boards (colored-piece-index :queen  color)))
          (king    (aref boards (colored-piece-index :king   color)))
-         (cap-e   (if (eq color :white) 9 -7))
-         (cap-w   (if (eq color :white) 7 -9)))
+         (params  (side-params color))
+         (cap-e   (side-cap-e-shift params))
+         (cap-w   (side-cap-w-shift params)))
     (logior
      (logior (logand (ash (logand pawns +not-file-h+) cap-e) +full-board+)
              (logand (ash (logand pawns +not-file-a+) cap-w) +full-board+))
