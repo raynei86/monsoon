@@ -15,7 +15,8 @@
 
 (defmacro generate-major-piece-moves (pieces-bb attack-expr friendly enemy)
   "Generate pseudo-legal moves for pieces that are not pawns in pieces-bb.
-   ATTACK-EXPR is spliced with FROM bound to each piece square."
+   ATTACK-EXPR is spliced with FROM bound to each piece square; pass e.g.
+   (rook-attack-mask from occupied)."
   `(let ((moves '()))
      (do-bitboard (from ,pieces-bb)
        (let* ((attacks (logandc2 ,attack-expr ,friendly))

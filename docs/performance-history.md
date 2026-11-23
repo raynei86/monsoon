@@ -161,6 +161,28 @@ Measured against the Phase 1 state in one SBCL image (pre-Phase-2 snapshot loade
 - **Allocation unchanged:** 26.454 vs 26.432 bytes/node at depth 5; the component figures (`generate-moves` 41.57 MB per 100k calls, `generate-pawn-moves` 25.58 MB, `generate-rook-moves` 3.18 MB, `make-legality-context` 12.78 MB) are identical to the pre-Phase-2 numbers.
 - **Correctness:** 13/13 tests, startpos `20/400/8902/197281`, Kiwipete `48/2039/97862`, Kiwipete depth 4, and positions 4–6 of the extended battery.
 
+## Phase 3: macro hygiene (working tree, uncommitted)
+
+Two changes: `union-attacks` now declares its injected binding at the call site (`(union-attacks (sq bb) expr)`), and the anaphora/hygiene policy is documented. The planned macro→function conversion for the slider attack masks was implemented, measured, and **reverted**:
+
+| form of `rook-attack-mask` | rook-gen allocation, 100k calls |
+|---|---|
+| macro, direct splice (kept) | 3.18 MB |
+| inline function | 6.39 MB (+32 B per call) |
+| plain function | 25.59 MB (8×) |
+| macro, gensym-bound arguments | 6.39 MB |
+
+The function and `let`-bound forms force SBCL to unbox/rebox the 64-bit `occupied` value around the ray calls; only the direct-splice macro keeps it in its original representation. Since the masks already take `square` and `occupied` explicitly — there is no anaphora to remove — keeping the macro is both the hygienic and the allocation-free form. The macro comment and the developer docs record this.
+
+Verification: 13/13 tests, perft gates exact, depth-5 allocation unchanged at **26.432 bytes/node** (identical to Phase 2), and a paired depth-6 A/B against the Phase 2 state in one image:
+
+| round | Phase 2 | Phase 3 |
+|---|---|---|
+| 1 (base first) | 13.959 s | 14.070 s |
+| 2 (current first) | 14.546 s | 14.442 s |
+
+The net effect is inside the ±1.8% noise floor (one round +0.8%, the other −0.7%), as expected for a hygiene-only change.
+
 ## Planned resolution: allocation-free move generation
 
 Both regressions above point at the same structural cost: every node builds a fresh list of moves, and the list-building mechanics (consing, `nreverse`, `nconc`, and the `remove-if-not` copy in `generate-legal-moves`) sit directly on the perft/search critical path. Rather than optimizing the list construction itself (tail-consing, or simply dropping the reversal), the planned direction is to **stop allocating a per-node move list entirely**:

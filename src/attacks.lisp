@@ -109,31 +109,38 @@
 	   (type bitboard occupied))
   (ray-attacks square direction occupied msb))
 
-;; Slider attack macros are anaphoric; FROM is bound by generate-major-piece-moves.
+;; Slider attack forms are macros so the expansion splices into the caller.
+;; SQUARE and OCCUPIED are explicit arguments; they are spliced directly, so
+;; pass simple expressions (all current call sites pass variables). Function
+;; forms were measured to cost one extra bignum per slider call -- see
+;; docs/performance-history.md.
 (defmacro rook-attack-mask (square occupied)
   "Rook attacks from SQUARE given OCCUPIED squares."
   `(logior (ray-attacks+ ,square :n ,occupied)
-          (ray-attacks+ ,square :e ,occupied)
-          (ray-attacks- ,square :s ,occupied)
-          (ray-attacks- ,square :w ,occupied)))
+            (ray-attacks+ ,square :e ,occupied)
+            (ray-attacks- ,square :s ,occupied)
+            (ray-attacks- ,square :w ,occupied)))
 
 (defmacro bishop-attack-mask (square occupied)
   "Bishop attacks from SQUARE given OCCUPIED squares."
   `(logior (ray-attacks+ ,square :ne ,occupied)
-           (ray-attacks+ ,square :nw ,occupied)
-           (ray-attacks- ,square :se ,occupied)
-           (ray-attacks- ,square :sw ,occupied)))
+            (ray-attacks+ ,square :nw ,occupied)
+            (ray-attacks- ,square :se ,occupied)
+            (ray-attacks- ,square :sw ,occupied)))
 
 (defmacro queen-attack-mask (square occupied)
   "Queen attacks from SQUARE given OCCUPIED squares."
   `(logior (rook-attack-mask ,square ,occupied)
-	   (bishop-attack-mask ,square ,occupied)))
+            (bishop-attack-mask ,square ,occupied)))
 
-(defmacro union-attacks (bb expr)
-  "OR together EXPR evaluated for each set bit of BB. SQ is bound to each bit index."
-  `(let ((acc (the bitboard 0)))
-     (do-bitboard (sq ,bb acc)
-       (setf acc (logior acc (the bitboard ,expr))))))
+(defmacro union-attacks ((sq bb) expr)
+  "OR together EXPR evaluated with SQ bound to each set bit of BB."
+  (let ((acc (gensym "ACC-"))
+        (bits (gensym "BITS-")))
+    `(let ((,acc (the bitboard 0))
+           (,bits ,bb))
+       (do-bitboard (,sq ,bits ,acc)
+         (setf ,acc (logior ,acc (the bitboard ,expr)))))))
 
 (defun attacked-by (pos color &key (occupied (pos-occupied-squares pos)))
   "Return a bitboard of every square attacked by COLOR's pieces in POS.
@@ -155,10 +162,10 @@
     (logior
      (logior (logand (ash (logand pawns +not-file-h+) cap-e) +full-board+)
              (logand (ash (logand pawns +not-file-a+) cap-w) +full-board+))
-     (union-attacks knights (aref +knight-attacks+ sq))
-     (union-attacks (logior bishops queens) (bishop-attack-mask sq occupied))
-     (union-attacks (logior rooks queens)   (rook-attack-mask sq occupied))
-     (union-attacks king (aref +king-attacks+ sq)))))
+     (union-attacks (sq knights) (aref +knight-attacks+ sq))
+     (union-attacks (sq (logior bishops queens)) (bishop-attack-mask sq occupied))
+     (union-attacks (sq (logior rooks queens))   (rook-attack-mask sq occupied))
+     (union-attacks (sq king) (aref +king-attacks+ sq)))))
 
 (defun attacked-by-kingless (pos color)
   "Return a bitboard of every square COLOR's opponent attacks, computed with

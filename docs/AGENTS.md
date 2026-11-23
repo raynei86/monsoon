@@ -114,7 +114,7 @@ pseudo-legal generation followed by legal filtering:
 
 **Precomputed tables** (`+king-attacks+`, `+knight-attacks+`, `+rays+`) are built at load time using the `build-attack-table` and `build-ray-table` macros. These macros are load-time tools, not runtime abstractions; do not call them from non-toplevel code.
 
-Sliding piece attacks use the classical positive/negative ray technique. `ray-attacks+` uses `lsb` (lowest set bit) to find the first blocker along a positive ray; `ray-attacks-` uses `msb`. The attack-mask macros (`rook-attack-mask`, `bishop-attack-mask`, `queen-attack-mask`) are macros rather than functions because they capture the anaphoric `from` variable injected by `generate-major-piece-moves`. Be careful when reading or modifying these: the macro expansion is context-dependent.
+Sliding piece attacks use the classical positive/negative ray technique. `ray-attacks+` uses `lsb` (lowest set bit) to find the first blocker along a positive ray; `ray-attacks-` uses `msb`. The attack-mask forms (`rook-attack-mask`, `bishop-attack-mask`, `queen-attack-mask`) take `(square occupied)` as explicit arguments — there is no anaphoric binding. They stay macros rather than functions because a function boundary forces an extra 64-bit representation conversion per slider call (measured; see `docs/performance-history.md`), and the arguments are spliced directly, so pass variables.
 
 Pawn generation uses bitboard shift arithmetic entirely (no per-pawn loop). Promotions are emitted by splitting target bitboards against the promotion-rank mask before calling `emit-pawn-promos`.
 
@@ -171,7 +171,12 @@ The `parse-ep-square` function interns the square string as a keyword and passes
 - Do not add magic numbers. All square indices should come from `(sq :name)`, all bit masks from named `+constants+`.
 - Do not inline complex logic into `generate-attack-table` / `generate-ray-table` body forms at load time for the sake of performance. The tables are only built once; clarity in their construction matters more.
 - Do not shadow or redefine `position` outside the test package (where `:shadow :cl:position` is already noted as a necessary evil for the `:use :monsoon` import).
-- Do not use `with-gensyms` in new code unless the macro truly needs hygiene protection; prefer readable generated names when the context makes shadowing impossible anyway.
+- **Macro hygiene:** anaphora is allowed only for documented, caller-facing
+  bindings (`from` in `generate-major-piece-moves`; `sq` in `do-bitboard` and
+  `(union-attacks (sq bb) expr)`). Document every injected binding in the
+  macro docstring, and declare it at the call site when the macro supports
+  that. Bindings created internally by an expansion use gensyms (see
+  `with-position`, `with-move-applied`).
 
 **Macro taxonomy:** `with-…` establishes bindings or state and unwinds it
 (`with-position`, `with-move`, `with-square`, `with-fen-fields`,
